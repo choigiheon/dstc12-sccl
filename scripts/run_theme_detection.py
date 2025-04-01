@@ -6,6 +6,7 @@ import json
 import os
 import copy
 import collections
+import pickle
 
 import getpass
 import tqdm
@@ -26,7 +27,7 @@ def parse_args():
     parser.add_argument('--n-clusters', type=int, default=10)
     parser.add_argument('--random-state', type=int, default=42)
     parser.add_argument('--embedding-model-name', type=str, default='sentence-transformers/all-mpnet-base-v2')
-    parser.add_argument('--llm-name', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
+    parser.add_argument('--llm-name', type=str, default='Qwen/Qwen2.5-1.5B')
     return parser.parse_args()
 
 
@@ -76,8 +77,21 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
             theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
         )
      )
-    embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
-    query_embeddings = [embeddings.embed_query(utterance) for utterance in tqdm.tqdm(utterances)]
+    
+    # 파일 이름 생성 (모델 이름의 '/'를 '_'로 변경)
+    safe_model_name = embedding_model_name.replace('/', '_')
+    embedding_file = f"embeddings_{safe_model_name}.pkl"
+    
+    # 파일이 존재하면 임베딩 불러오기, 없으면 새로 생성
+    if os.path.exists(embedding_file):
+        with open(embedding_file, 'rb') as f:
+            query_embeddings = pickle.load(f)
+    else:
+        embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
+        query_embeddings = [embeddings.embed_query(utterance) for utterance in tqdm.tqdm(utterances)]
+        # 임베딩 저장
+        with open(embedding_file, 'wb') as f:
+            pickle.dump(query_embeddings, f)
     kmeans = KMeans(n_clusters=n_clusters, n_init=1, init='k-means++', random_state=random_state)
     kmeans.fit(query_embeddings)
     clusters = kmeans.labels_

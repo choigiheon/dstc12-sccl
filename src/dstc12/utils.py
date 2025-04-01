@@ -61,7 +61,8 @@ def get_llm(llm_name):
 
     model = AutoModelForCausalLM.from_pretrained(
         llm_name,
-        torch_dtype=torch.bfloat16,
+        # torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
         device_map="auto"  # Automatically distribute the model across GPUs
     )
 

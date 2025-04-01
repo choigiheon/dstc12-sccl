@@ -7,20 +7,34 @@ from langchain_core.prompts import PromptTemplate
 PROMPT = PromptTemplate.from_template(
 '''<task>
 You are an expert call center assistant. You will be given a set of utterances in <utterances> </utterances> tags, each one on a new line.
-The utterances are part of callcenter conversations between the customer and the support agent.
-Your task is to generate a short label describing the theme of all the given utterances. The theme label should be under 5 words and describe the desired customer's action in the call.
+These utterances are part of a call center conversation between a customer and an agent.
+
+
+Your task is to generate a **concise, action-based theme label** that summarizes what the **customer wants to do**.
+The label should be:
+- fewer than 5 words
+- written as a verb phrase (e.g., "open account", "check balance")
+- general yet informative
 
 
 <guidance>
-Output your response in the following way.
-<theme_label_explanation>Your short step-by-step explanation behind the theme</theme_label_explanation>
-<theme_label>your theme label</theme_label>
+⚠️ You MUST output in the following format **exactly**.
+NO extra explanation. NO markdown. Only these two tags in this exact order:
+
+
+<theme_label_explanation>your reasoning here</theme_label_explanation>
+<theme_label>your concise label here</theme_label>
+
+
+✅ Example:
+<theme_label_explanation>Customer wants to see their recent transactions and review activity</theme_label_explanation>
+<theme_label>view transaction history</theme_label>
 </guidance>
 </task>
 
-H:
+
 <utterances>
-{utterances}
+{{utterances}}
 </utterances>
 '''
 )

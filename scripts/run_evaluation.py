@@ -56,8 +56,8 @@ def run_llm_eval(predictions, llm_name):
 
 def main(references, predictions, embedding_model_name, llm_name):
     non_llm_metrics = run_non_llm_eval(references, predictions, embedding_model_name)
-    llm_metrics = run_llm_eval(predictions, llm_name)
-    return non_llm_metrics | llm_metrics
+    # llm_metrics = run_llm_eval(predictions, llm_name)
+    return non_llm_metrics # | llm_metrics
 
 
 def parse_args():
@@ -65,7 +65,7 @@ def parse_args():
     parser.add_argument('ground_truth_file', type=str)
     parser.add_argument('predictions_file', type=str)
     parser.add_argument('--embedding-model-name', type=str, default='sentence-transformers/all-mpnet-base-v2')
-    parser.add_argument('--llm-name', type=str, default='lmsys/vicuna-13b-v1.5')
+    parser.add_argument('--llm-name', type=str, default='')
     return parser.parse_args()
 
 
