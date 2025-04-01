@@ -13,7 +13,7 @@ from transformers import BertPreTrainedModel
 # from transformers import AutoModel, AutoTokenizer
 
 class SCCLModel(nn.Module):
-    def __init__(self, model, tokenizer, cluster_centers=None, alpha=1.0):
+    def __init__(self, model, tokenizer, alpha=1.0):
         super(SCCLModel, self).__init__()
         
         self.tokenizer = tokenizer
@@ -27,10 +27,7 @@ class SCCLModel(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(self.emb_size, 128))
         
-        # Clustering head
-        initial_cluster_centers = torch.tensor(
-            cluster_centers, dtype=torch.float, requires_grad=True)
-        self.cluster_centers = Parameter(initial_cluster_centers)
+        self.cluster_centers = torch.zeros(1, 1) # dummy 클러스터 센터
       
     
     def forward(self, input_ids, attention_mask, task_type="virtual"):
@@ -88,5 +85,9 @@ class SCCLModel(nn.Module):
             return feat1, feat2
         else: 
             return feat1
+        
+    def set_cluster_centers(self, cluster_centers):
+        cluster_centers = torch.tensor(cluster_centers, dtype=torch.float, requires_grad=True)
+        self.cluster_centers = Parameter(cluster_centers)
 
 

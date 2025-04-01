@@ -21,8 +21,12 @@ from torch.nn import functional as F
 from learner.cluster_utils import target_distribution
 from learner.contrastive_utils import PairConLoss
 
+class TrainType:
+    pre_train = "CL"
+    joint_train = "SCCL"
+
 class SCCLvTrainer(nn.Module):
-    def __init__(self, model, tokenizer, optimizer, train_loader, args):
+    def __init__(self, model, tokenizer, optimizer, train_loader, cluster_model, args):
         super(SCCLvTrainer, self).__init__()
         self.model = model
         self.tokenizer = tokenizer
@@ -30,6 +34,7 @@ class SCCLvTrainer(nn.Module):
         self.train_loader = train_loader
         self.args = args
         self.eta = self.args.eta
+        self.cluster_model = cluster_model
         
         self.cluster_loss = nn.KLDivLoss(size_average=False)
         self.contrast_loss = PairConLoss(temperature=self.args.temperature)
@@ -69,7 +74,7 @@ class SCCLvTrainer(nn.Module):
         return input_ids.to(self.args.device), attention_mask.to(self.args.device)
         
         
-    def train_step_virtual(self, input_ids, attention_mask):
+    def train_step_virtual(self, input_ids, attention_mask, objective):
         
         embd1, embd2 = self.model(input_ids, attention_mask, task_type="virtual")
 
@@ -79,7 +84,7 @@ class SCCLvTrainer(nn.Module):
         loss = self.eta * losses["loss"]
         
         # Clustering loss
-        if self.args.objective == "SCCL":
+        if objective == TrainType.joint_train: # SCCL
             output = self.model.get_cluster_prob(embd1)
             target = target_distribution(output).detach()
             
@@ -103,7 +108,7 @@ class SCCLvTrainer(nn.Module):
         loss = self.eta * losses["loss"]
 
         # Clustering loss
-        if self.args.objective == "SCCL":
+        if self.args.objective == TrainType.joint_train:
             output = self.model.get_cluster_prob(embd1)
             target = target_distribution(output).detach()
             
@@ -116,75 +121,58 @@ class SCCLvTrainer(nn.Module):
         self.optimizer.zero_grad()
         return losses
     
-    
-    def train(self):
-        print('\n={}/{}=Iterations/Batches'.format(self.args.max_iter, len(self.train_loader)))
-
+    def train(self, train_type):
+        max_iter = self.args.joint_max_iter if train_type == TrainType.joint_train else self.args.pre_max_iter
+        print('\n={}/{}=Iterations/Batches'.format(max_iter, len(self.train_loader)))
         self.model.train()
         
         train_loader_iter = iter(self.train_loader)
-        for i in tqdm(np.arange(self.args.max_iter+1)):
+        
+        # For reference
+        self.predict(self.args.result_file)
+        self.evaluate(self.args.dataset_file, self.args.result_file)
+        
+        for i in tqdm(np.arange(max_iter)):
+            
             try:
                 batch = next(train_loader_iter)
             except:
                 train_loader_iter = iter(self.train_loader)
                 batch = next(train_loader_iter)
+                
+                all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
+                self.cluster_model.update(all_embeddings) # 에포크가 끝날떄마다 클러스터 업데이트
 
             input_ids, attention_mask = self.prepare_transformer_input(batch, self.args)
 
-            losses = self.train_step_virtual(input_ids, attention_mask) if self.args.augtype == "virtual" else self.train_step_explicit(input_ids, attention_mask)
-
-            if (self.args.print_freq>0) and ((i%self.args.print_freq==0) or (i==self.args.max_iter)):
-                # statistics_log(self.args.tensorboard, losses=losses, global_step=i)
-                # self.evaluate_embedding(i)
+            losses = self.train_step_virtual(input_ids, attention_mask, objective=TrainType.joint_train) if train_type == TrainType.joint_train else self.train_step_virtual(input_ids, attention_mask, objective=TrainType.pre_train)
+                
+            if (i % self.args.eval_interval == 0) and (i != 0):
+                self.predict(self.args.result_file)
+                self.evaluate(self.args.dataset_file, self.args.result_file)
                 self.model.train()
+
+            if (self.args.print_freq>0) and ((i%self.args.print_freq==0) or (i==max_iter)):
                 print(f"loss: {losses['loss']}, pos_mean: {losses['pos_mean']}, neg_mean: {losses['neg_mean']}")
-                if self.args.objective == "SCCL":
+                if train_type == TrainType.joint_train:
                     print(f"cluster_loss: {losses['cluster_loss']}")
+                self.model.train()
 
         return None   
     
-    def predict(self):
+    def predict(self, result_file):
         dataloader = unshuffle_dstc12_loader(self.args)
         print('---- {} prediction batches ----'.format(len(dataloader)))     
         self.model.eval()
         
-        # 모든 발화문의 임베딩 추출
-        all_embeddings = []
-        all_utterances = []
-        
-        with torch.no_grad():
-            for i, batch in enumerate(dataloader):
-                text = batch['text']
-                feat = self.get_batch_token(text)
-                embeddings = self.model(feat['input_ids'].to(self.args.device), 
-                                       feat['attention_mask'].to(self.args.device), 
-                                       task_type="evaluate")
-                
-                # 임베딩과 해당 발화문 저장
-                all_embeddings.append(embeddings.detach().cpu())
-                all_utterances.extend(text)
-                
-                if i % 10 == 0:
-                    print(f"Processed {i}/{len(dataloader)} batches")
-        
-        # 모든 임베딩 결합
-        all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
-        print(f"총 {len(all_utterances)}개 발화문 임베딩 추출 완료, 임베딩 크기: {all_embeddings.shape}")
-        
         # K-means 클러스터링 수행
-        kmeans = cluster.KMeans(n_clusters=self.args.num_clusters, random_state=self.args.seed, n_init=100, init='k-means++')
-        cluster_labels = kmeans.fit_predict(all_embeddings)
+        all_embeddings, all_utterances = self.get_embeddings(dataloader)
+        cluster_labels, high_score_centers = self.cluster_model.predict(all_embeddings) 
         
         print(f"클러스터링 완료: {self.args.num_clusters}개 클러스터")
         
         # 각 발화문에 클러스터 라벨 매핑
         cluster_label_map = {utterance: str(label) for utterance, label in zip(all_utterances, cluster_labels)}
-        
-        # 클러스터 분포 확인
-        cluster_counts = np.bincount(cluster_labels, minlength=self.args.num_clusters)
-        for i, count in enumerate(cluster_counts):
-            print(f"클러스터 {i}: {count}개 발화문")
         
         # 원본 데이터셋 로드
         with open(self.args.dataset_file) as f:
@@ -197,7 +185,7 @@ class SCCLvTrainer(nn.Module):
                 if turn.get('theme_label') is not None:
                     themed_utterances.add(turn['utterance'])
         
-        print(f"테마 라벨이 있는 발화문: {len(themed_utterances)}개")
+        print(f"theme_label이 있는 발화문: {len(themed_utterances)}개")
         
         # 예측 결과를 원본 데이터셋에 추가
         dataset_predicted = dataset.copy()
@@ -213,68 +201,29 @@ class SCCLvTrainer(nn.Module):
                         turn['theme_label_predicted'] = 0
         
             
-        with open(self.args.result_file, 'w') as result_out:
+        with open(result_file, 'w') as result_out:
             for dialogue in dataset_predicted:
                 print(json.dumps(dialogue), file=result_out)
-
-    # def evaluate_embedding(self, step):
-    #     dataloader = unshuffle_loader(self.args)
-    #     print('---- {} evaluation batches ----'.format(len(dataloader)))
+                
+    def get_embeddings(self, dataloader):
+        all_embeddings = []
+        all_utterances = []
         
-    #     self.model.eval()
-    #     for i, batch in enumerate(dataloader):
-    #         with torch.no_grad():
-    #             text, label = batch['text'], batch['label'] 
-    #             feat = self.get_batch_token(text)
-    #             embeddings = self.model(feat['input_ids'].cuda(), feat['attention_mask'].cuda(), task_type="evaluate")
-
-    #             model_prob = self.model.get_cluster_prob(embeddings)
-    #             if i == 0:
-    #                 all_labels = label
-    #                 all_embeddings = embeddings.detach()
-    #                 all_prob = model_prob
-    #             else:
-    #                 all_labels = torch.cat((all_labels, label), dim=0)
-    #                 all_embeddings = torch.cat((all_embeddings, embeddings.detach()), dim=0)
-    #                 all_prob = torch.cat((all_prob, model_prob), dim=0)
-                    
-    #     # Initialize confusion matrices
-    #     confusion, confusion_model = Confusion(self.args.num_classes), Confusion(self.args.num_classes)
+        with torch.no_grad():
+            for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="임베딩 추출"):
+                text = batch['text']
+                feat = self.get_batch_token(text)
+                embeddings = self.model(feat['input_ids'].to(self.args.device), 
+                                       feat['attention_mask'].to(self.args.device), 
+                                       task_type="evaluate")
+                
+                # 임베딩과 해당 발화문 저장
+                all_embeddings.append(embeddings.detach().cpu())
+                all_utterances.extend(text)
         
-    #     all_pred = all_prob.max(1)[1]
-    #     confusion_model.add(all_pred, all_labels)
-    #     confusion_model.optimal_assignment(self.args.num_classes)
-    #     acc_model = confusion_model.acc()
+        # 모든 임베딩 결합
+        all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
+        return all_embeddings, all_utterances
 
-    #     kmeans = cluster.KMeans(n_clusters=self.args.num_classes, random_state=self.args.seed)
-    #     embeddings = all_embeddings.cpu().numpy()
-    #     kmeans.fit(embeddings)
-    #     pred_labels = torch.tensor(kmeans.labels_.astype(np.int))
-        
-    #     # clustering accuracy 
-    #     confusion.add(pred_labels, all_labels)
-    #     confusion.optimal_assignment(self.args.num_classes)
-    #     acc = confusion.acc()
-
-    #     ressave = {"acc":acc, "acc_model":acc_model}
-    #     ressave.update(confusion.clusterscores())
-    #     for key, val in ressave.items():
-    #         self.args.tensorboard.add_scalar('Test/{}'.format(key), val, step)
-            
-    #     np.save(self.args.resPath + 'acc_{}.npy'.format(step), ressave)
-    #     np.save(self.args.resPath + 'scores_{}.npy'.format(step), confusion.clusterscores())
-    #     np.save(self.args.resPath + 'mscores_{}.npy'.format(step), confusion_model.clusterscores())
-    #     # np.save(self.args.resPath + 'mpredlabels_{}.npy'.format(step), all_pred.cpu().numpy())
-    #     # np.save(self.args.resPath + 'predlabels_{}.npy'.format(step), pred_labels.cpu().numpy())
-    #     # np.save(self.args.resPath + 'embeddings_{}.npy'.format(step), embeddings)
-    #     # np.save(self.args.resPath + 'labels_{}.npy'.format(step), all_labels.cpu())
-
-    #     print('[Representation] Clustering scores:',confusion.clusterscores()) 
-    #     print('[Representation] ACC: {:.3f}'.format(acc)) 
-    #     print('[Model] Clustering scores:',confusion_model.clusterscores()) 
-    #     print('[Model] ACC: {:.3f}'.format(acc_model))
-    #     return None
-
-
-
-             
+    def evaluate(self, dataset_file, result_file):
+        os.system(f"bash -c 'source $(conda info --base)/etc/profile.d/conda.sh && conda activate dstc12 && . ./set_paths.sh && python3 scripts/run_evaluation.py {dataset_file} {result_file}'")

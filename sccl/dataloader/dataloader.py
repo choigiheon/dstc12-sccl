@@ -69,13 +69,13 @@ def unshuffle_loader(args):
     return train_loader
 
 def unshuffle_dstc12_loader(args):
-    with open(args.dataset_file) as f:
+    with open(file=args.dataset_file) as f:
         dataset = [json.loads(line) for line in f]
-    themed_utterances = set([])
+    themed_utterances = [] # ordered
     for dialogue in dataset:
         for turn in dialogue['turns']:
             if turn['theme_label'] is not None:
-                themed_utterances.add(turn['utterance'])
+                themed_utterances.append(turn['utterance'])
     
     train_dataset = VirtualAugSamples(list(themed_utterances))
     train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)   
