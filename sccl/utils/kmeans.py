@@ -9,7 +9,7 @@ import torch
 import numpy as np
 from utils.metric import Confusion
 from sklearn.cluster import KMeans
-
+from tqdm import tqdm
 
 def get_mean_embeddings(bert, input_ids, attention_mask):
         bert_output = bert.forward(input_ids=input_ids, attention_mask=attention_mask)
@@ -26,36 +26,35 @@ def get_batch_token(tokenizer, text, max_length):
         padding='max_length', 
         truncation=True
     )
-    return token_feat
+    return {'input_ids': token_feat['input_ids'], 'attention_mask': token_feat['attention_mask']}
 
 
-def get_kmeans_centers(bert, tokenizer, train_loader, num_classes, max_length):
-    for i, batch in enumerate(train_loader):
-
-        text, label = batch['text'], batch['label']
+def get_kmeans_centers(bert, tokenizer, train_loader, num_classes, max_length, args):
+    
+    print("임베딩 추출 중...")
+    for i, batch in tqdm(enumerate(train_loader), total=len(train_loader), desc="임베딩 추출"):
+        text = batch['text']
         tokenized_features = get_batch_token(tokenizer, text, max_length)
         corpus_embeddings = get_mean_embeddings(bert, **tokenized_features)
         
         if i == 0:
-            all_labels = label
             all_embeddings = corpus_embeddings.detach().numpy()
         else:
-            all_labels = torch.cat((all_labels, label), dim=0)
             all_embeddings = np.concatenate((all_embeddings, corpus_embeddings.detach().numpy()), axis=0)
+            
+    print(f"총 {all_embeddings.shape[0]}개 발화문의 임베딩 추출 완료")
 
     # Perform KMeans clustering
     confusion = Confusion(num_classes)
-    clustering_model = KMeans(n_clusters=num_classes)
+    clustering_model = KMeans(n_clusters=num_classes, random_state=args.seed)
     clustering_model.fit(all_embeddings)
     cluster_assignment = clustering_model.labels_
 
-    true_labels = all_labels
     pred_labels = torch.tensor(cluster_assignment)    
-    print("all_embeddings:{}, true_labels:{}, pred_labels:{}".format(all_embeddings.shape, len(true_labels), len(pred_labels)))
+    print("all_embeddings:{}, pred_labels:{}".format(all_embeddings.shape, len(pred_labels)))
 
-    confusion.add(pred_labels, true_labels)
     confusion.optimal_assignment(num_classes)
-    print("Iterations:{}, Clustering ACC:{:.3f}, centers:{}".format(clustering_model.n_iter_, confusion.acc(), clustering_model.cluster_centers_.shape))
+    print("Iterations:{}, centers:{}".format(clustering_model.n_iter_, clustering_model.cluster_centers_.shape))
     
     return clustering_model.cluster_centers_
 

@@ -6,21 +6,20 @@ Date: 02/26/2021
 """
 
 import os
+import json
 import pandas as pd
 import torch.utils.data as util_data
 from torch.utils.data import Dataset
 
 class VirtualAugSamples(Dataset):
-    def __init__(self, train_x, train_y):
-        assert len(train_x) == len(train_y)
+    def __init__(self, train_x):
         self.train_x = train_x
-        self.train_y = train_y
 
     def __len__(self):
         return len(self.train_x)
 
     def __getitem__(self, idx):
-        return {'text': self.train_x[idx], 'label': self.train_y[idx]}
+        return {'text': self.train_x[idx]}
 
     
 class ExplitAugSamples(Dataset):
@@ -69,3 +68,29 @@ def unshuffle_loader(args):
     train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=1)   
     return train_loader
 
+def unshuffle_dstc12_loader(args):
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+    themed_utterances = set([])
+    for dialogue in dataset:
+        for turn in dialogue['turns']:
+            if turn['theme_label'] is not None:
+                themed_utterances.add(turn['utterance'])
+    
+    train_dataset = VirtualAugSamples(list(themed_utterances))
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=False, num_workers=4)   
+    return train_loader
+    
+
+def dstc12_loader(args):
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+    themed_utterances = set([])
+    for dialogue in dataset:
+        for turn in dialogue['turns']:
+            if turn['theme_label'] is not None:
+                themed_utterances.add(turn['utterance'])
+    
+    train_dataset = VirtualAugSamples(list(themed_utterances))
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
+    return train_loader

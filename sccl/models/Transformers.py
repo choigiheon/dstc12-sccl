@@ -12,13 +12,13 @@ from torch.nn import Parameter
 from transformers import BertPreTrainedModel
 # from transformers import AutoModel, AutoTokenizer
 
-class SCCLBert(nn.Module):
-    def __init__(self, bert_model, tokenizer, cluster_centers=None, alpha=1.0):
-        super(SCCLBert, self).__init__()
+class SCCLModel(nn.Module):
+    def __init__(self, model, tokenizer, cluster_centers=None, alpha=1.0):
+        super(SCCLModel, self).__init__()
         
         self.tokenizer = tokenizer
-        self.bert = bert_model
-        self.emb_size = self.bert.config.hidden_size
+        self.model = model
+        self.emb_size = self.model.config.hidden_size
         self.alpha = alpha
         
         # Instance-CL head
@@ -59,9 +59,9 @@ class SCCLBert(nn.Module):
       
     
     def get_mean_embeddings(self, input_ids, attention_mask):
-        bert_output = self.bert.forward(input_ids=input_ids, attention_mask=attention_mask)
+        model_output = self.model.forward(input_ids=input_ids, attention_mask=attention_mask)
         attention_mask = attention_mask.unsqueeze(-1)
-        mean_output = torch.sum(bert_output[0]*attention_mask, dim=1) / torch.sum(attention_mask, dim=1)
+        mean_output = torch.sum(model_output[0]*attention_mask, dim=1) / torch.sum(attention_mask, dim=1)
         return mean_output
     
 

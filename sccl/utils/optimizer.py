@@ -23,7 +23,7 @@ SBERT_CLASS = {
 def get_optimizer(model, args):
     
     optimizer = torch.optim.Adam([
-        {'params':model.bert.parameters()}, 
+        {'params':model.model.parameters()}, 
         {'params':model.contrast_head.parameters(), 'lr': args.lr*args.lr_scale},
         {'params':model.cluster_centers, 'lr': args.lr*args.lr_scale}
     ], lr=args.lr)
@@ -32,18 +32,23 @@ def get_optimizer(model, args):
     return optimizer 
     
 
-def get_bert(args):
+def get_model(args):
     
-    if args.use_pretrain == "SBERT":
-        bert_model = get_sbert(args)
-        tokenizer = bert_model[0].tokenizer
-        model = bert_model[0].auto_model
-        print("..... loading Sentence-BERT !!!")
-    else:
-        config = AutoConfig.from_pretrained(BERT_CLASS[args.bert])
-        model = AutoModel.from_pretrained(BERT_CLASS[args.bert], config=config)
-        tokenizer = AutoTokenizer.from_pretrained(BERT_CLASS[args.bert])
-        print("..... loading plain BERT !!!")
+    # if args.use_pretrain == "SBERT":
+    #     bert_model = get_sbert(args)
+    #     tokenizer = bert_model[0].tokenizer
+    #     model = bert_model[0].auto_model
+    #     print("..... loading Sentence-BERT !!!")
+    # else:
+    #     config = AutoConfig.from_pretrained(BERT_CLASS[args.bert])
+    #     model = AutoModel.from_pretrained(BERT_CLASS[args.bert], config=config)
+    #     tokenizer = AutoTokenizer.from_pretrained(BERT_CLASS[args.bert])
+    #     print("..... loading plain BERT !!!")
+    
+    config = AutoConfig.from_pretrained(args.model_name)
+    config.hidden_dropout_prob = args.dropout
+    model = AutoModel.from_pretrained(pretrained_model_name_or_path=args.model_name, config=config)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
         
     return model, tokenizer
 
