@@ -130,7 +130,7 @@ class SCCLvTrainer(nn.Module):
         
         # For reference
         self.predict(self.args.result_file)
-        self.evaluate(self.args.dataset_file, self.args.result_file)
+        metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
         
         
         for i in tqdm(np.arange(max_iter)):
