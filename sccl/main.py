@@ -40,7 +40,8 @@ def run(args):
     trainer.train(train_type=TrainType.pre_train)
     model.set_cluster_centers(cluster_model.get_hsc())
     trainer.train(train_type=TrainType.joint_train)
-    trainer.predict()
+    trainer.predict(args.result_file)
+    trainer.evaluate(args.dataset_file, args.result_file)
     
     return None
 
@@ -60,8 +61,8 @@ def get_args(argv):
     # Learning parameters
     parser.add_argument('--lr', type=float, default=1e-6, help="")
     parser.add_argument('--lr_scale', type=int, default=10, help="head에는 lr_scale 적용")
-    parser.add_argument('--joint-max_iter', type=int, default=5)
-    parser.add_argument('--pre-max_iter', type=int, default=5)
+    parser.add_argument('--joint-max_iter', type=int, default=41*3)
+    parser.add_argument('--pre-max_iter', type=int, default=41*3)
     # contrastive learning
     parser.add_argument('--augtype', type=str, default='virtual', choices=['virtual', 'explicit']) # 건들지 말 것.
     parser.add_argument('--temperature', type=float, default=0.5, help="temperature required by contrastive loss")
@@ -71,10 +72,10 @@ def get_args(argv):
     parser.add_argument('--num_clusters', type=int, default=14)
     parser.add_argument('--alpha', type=float, default=1.0)
     parser.add_argument('--use_progressive', type=bool, default=False)
-    parser.add_argument('--n_init', type=int, default=1, help="Progressive KMeans의 초기화 횟수")
+    parser.add_argument('--n_init', type=int, default=100, help="Progressive KMeans의 초기화 횟수")
     
     # evaluation
-    parser.add_argument('--eval_interval', type=int, default=10, help="eval 결과를 출력할 간격")
+    parser.add_argument('--eval_interval', type=int, default=41, help="eval 결과를 출력할 간격")
     
     args = parser.parse_args(argv)
     

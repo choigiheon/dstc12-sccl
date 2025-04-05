@@ -132,6 +132,7 @@ class SCCLvTrainer(nn.Module):
         self.predict(self.args.result_file)
         self.evaluate(self.args.dataset_file, self.args.result_file)
         
+        
         for i in tqdm(np.arange(max_iter)):
             
             try:
