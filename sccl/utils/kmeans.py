@@ -90,17 +90,29 @@ class ProgressiveKMeans:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init=self.high_score_centers, random_state=self.args.seed)
         else:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
+        
+        # GPU 텐서를 CPU로 이동한 후 numpy로 변환
+        if torch.is_tensor(all_embeddings) and all_embeddings.is_cuda:
+            all_embeddings_np = all_embeddings.cpu().numpy()
+        else:
+            all_embeddings_np = all_embeddings
             
-        kmeans.fit(all_embeddings)
+        kmeans.fit(all_embeddings_np)
         cluster_centers = kmeans.cluster_centers_
         labels = kmeans.labels_
         
-        high_score_centers = self.calculate_high_score_centers(all_embeddings, cluster_centers, labels)
+        high_score_centers = self.calculate_high_score_centers(all_embeddings_np, cluster_centers, labels)
         return labels, high_score_centers
     
     def calculate_high_score_centers(self, all_embeddings, cluster_centers, labels):
+        # GPU 텐서를 CPU로 이동한 후 numpy로 변환
+        if torch.is_tensor(all_embeddings) and all_embeddings.is_cuda:
+            all_embeddings_np = all_embeddings.cpu().numpy()
+        else:
+            all_embeddings_np = all_embeddings
+            
         # 실루엣 점수 계산
-        silhouette_vals = silhouette_samples(all_embeddings, labels)
+        silhouette_vals = silhouette_samples(all_embeddings_np, labels)
         
         # 각 클러스터별 상위 20개 실루엣 점수를 가진 샘플의 centroid 계산
         high_score_centers = np.zeros_like(cluster_centers)
@@ -119,7 +131,7 @@ class ProgressiveKMeans:
                 top_indices = cluster_indices
             
             # 선택된 샘플들의 평균 계산하여 high_score_centers에 저장
-            high_score_centers[i] = np.mean(all_embeddings[top_indices], axis=0)
+            high_score_centers[i] = np.mean(all_embeddings_np[top_indices], axis=0)
             
         return torch.tensor(high_score_centers, device=self.args.device)
         
