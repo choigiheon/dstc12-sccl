@@ -157,6 +157,10 @@ class SCCLvTrainer(nn.Module):
                 if train_type == TrainType.joint_train:
                     print(f"cluster_loss: {losses['cluster_loss']}")
                 self.model.train()
+                
+        # 마지막 배치에서 클러스터 업데이트
+        all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
+        self.cluster_model.update(all_embeddings)
 
         return None   
     
