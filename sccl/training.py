@@ -231,4 +231,75 @@ class SCCLvTrainer(nn.Module):
         return all_embeddings, all_utterances
 
     def evaluate(self, dataset_file, result_file):
-        os.system(f"bash -c 'source $(conda info --base)/etc/profile.d/conda.sh && conda activate dstc12 && . ./set_paths.sh && python3 scripts/run_evaluation.py {dataset_file} {result_file}'")
+        # 필요한 모듈 임포트
+        import sys
+        import os
+        
+        # dstc12 패키지 경로 추가
+        sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts'))
+        
+        from dstc12.eval import (
+            acc,
+            nmi,
+            rouge_with_multiple_references,
+            cosine_similarity_with_multiple_references
+        )
+        from langchain_huggingface import HuggingFaceEmbeddings
+        import json
+        
+        print("평가 진행 중...")
+        
+        # 데이터 로드
+        with open(dataset_file) as f:
+            ground_truth = [json.loads(line) for line in f]
+        with open(result_file) as f:
+            predictions = [json.loads(line) for line in f]
+            
+        # 필요한 데이터 추출
+        label1_references, label2_references, label_predictions = [], [], []
+        for dialog_gt, dialog_pred in zip(ground_truth, predictions):
+            assert len(dialog_gt['turns']) == len(dialog_pred['turns'])
+            for utterance_gt, utterance_pred in zip(dialog_gt['turns'], dialog_pred['turns']):
+                assert utterance_gt['utterance_id'] == utterance_pred['utterance_id']
+                if utterance_gt['theme_label'] is None:
+                    continue
+                uid = utterance_gt['utterance_id']
+                label1_references.append(utterance_gt['theme_label']['label_1'])
+                label2_references.append(utterance_gt['theme_label']['label_2'])
+                label_predictions.append(utterance_pred['theme_label_predicted'])
+        
+        # 임베딩 모델 로드
+        embedding_model_name = 'sentence-transformers/all-mpnet-base-v2'
+        embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
+        
+        # 임베딩 계산
+        reference_1_embeddings = embeddings.embed_documents(label1_references)
+        reference_2_embeddings = embeddings.embed_documents(label2_references)
+        predictions_embeddings = embeddings.embed_documents(label_predictions)
+        
+        # 평가 지표 계산
+        avg_acc = acc(references=label1_references, predictions=label_predictions)
+        avg_nmi = nmi(references=label1_references, predictions=label_predictions)
+        avg_rouge = rouge_with_multiple_references(
+            [[label_1, label_2] for label_1, label_2 in zip(label1_references, label2_references)],
+            label_predictions
+        )
+        avg_cosine_similarity = cosine_similarity_with_multiple_references(
+            (reference_1_embeddings, reference_2_embeddings),
+            predictions_embeddings
+        )
+        
+        # 결과 출력
+        metrics = {
+            'acc': avg_acc,
+            'nmi': avg_nmi,
+            'rouge_1': avg_rouge['rouge1'].fmeasure,
+            'rouge_2': avg_rouge['rouge2'].fmeasure,
+            'rouge_l': avg_rouge['rougeL'].fmeasure,
+            'cosine_similarity': avg_cosine_similarity,
+        }
+        
+        for metric, value in metrics.items():
+            print(f'{metric}: {value:.3f}')
+            
+        return metrics
