@@ -38,10 +38,16 @@ def get_kmeans_centers(model, tokenizer, train_loader, num_classes, max_length, 
         tokenized_features = get_batch_token(tokenizer, text, max_length)
         corpus_embeddings = get_mean_embeddings(model, **tokenized_features)
         
-        if i == 0:
-            all_embeddings = corpus_embeddings.detach().numpy()
+        # GPU 텐서를 CPU로 이동시킨 후 numpy 변환
+        if torch.is_tensor(corpus_embeddings) and corpus_embeddings.is_cuda:
+            corpus_embeddings_np = corpus_embeddings.cpu().detach().numpy()
         else:
-            all_embeddings = np.concatenate((all_embeddings, corpus_embeddings.detach().numpy()), axis=0)
+            corpus_embeddings_np = corpus_embeddings.detach().numpy()
+        
+        if i == 0:
+            all_embeddings = corpus_embeddings_np
+        else:
+            all_embeddings = np.concatenate((all_embeddings, corpus_embeddings_np), axis=0)
             
     print(f"총 {all_embeddings.shape[0]}개 발화문의 임베딩 추출 완료")
 
@@ -79,11 +85,17 @@ class ProgressiveKMeans:
         else:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
             
-        kmeans.fit(all_embeddings)
+        # GPU 텐서를 CPU로 이동한 후 numpy로 변환
+        if torch.is_tensor(all_embeddings) and all_embeddings.is_cuda:
+            all_embeddings_np = all_embeddings.cpu().numpy()
+        else:
+            all_embeddings_np = all_embeddings
+            
+        kmeans.fit(all_embeddings_np)
         self.cluster_centers = kmeans.cluster_centers_
         self.labels = kmeans.labels_
         
-        self.high_score_centers = self.calculate_high_score_centers(all_embeddings, self.cluster_centers, self.labels)
+        self.high_score_centers = self.calculate_high_score_centers(all_embeddings_np, self.cluster_centers, self.labels)
         
     def predict(self, all_embeddings):
         if self.use_progressive and self.high_score_centers is not None:
