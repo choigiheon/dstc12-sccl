@@ -39,7 +39,7 @@ def get_kmeans_centers(model, tokenizer, train_loader, num_classes, max_length, 
         corpus_embeddings = get_mean_embeddings(model, **tokenized_features)
         
         # GPU 텐서를 CPU로 이동시킨 후 numpy 변환
-        if torch.is_tensor(corpus_embeddings) and corpus_embeddings.is_cuda:
+        if torch.is_tensor(corpus_embeddings) and corpus_embeddings.device.type != 'cpu':
             corpus_embeddings_np = corpus_embeddings.cpu().detach().numpy()
         else:
             corpus_embeddings_np = corpus_embeddings.detach().numpy()
@@ -82,16 +82,16 @@ class ProgressiveKMeans:
     def update(self, all_embeddings):
         if self.use_progressive and self.high_score_centers is not None:
             # GPU 텐서인 high_score_centers를 CPU로 이동시킨 후 numpy로 변환
-            if torch.is_tensor(self.high_score_centers) and self.high_score_centers.is_cuda:
+            if torch.is_tensor(self.high_score_centers) and self.high_score_centers.device.type != 'cpu':
                 init_centers = self.high_score_centers.cpu().numpy()
             else:
                 init_centers = self.high_score_centers
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init=init_centers, random_state=self.args.seed)
         else:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
-            
+        
         # GPU 텐서를 CPU로 이동한 후 numpy로 변환
-        if torch.is_tensor(all_embeddings) and all_embeddings.is_cuda:
+        if torch.is_tensor(all_embeddings):
             all_embeddings_np = all_embeddings.cpu().numpy()
         else:
             all_embeddings_np = all_embeddings
@@ -105,7 +105,7 @@ class ProgressiveKMeans:
     def predict(self, all_embeddings):
         if self.use_progressive and self.high_score_centers is not None:
             # GPU 텐서인 high_score_centers를 CPU로 이동시킨 후 numpy로 변환
-            if torch.is_tensor(self.high_score_centers) and self.high_score_centers.is_cuda:
+            if torch.is_tensor(self.high_score_centers) and self.high_score_centers.device.type != 'cpu':
                 init_centers = self.high_score_centers.cpu().numpy()
             else:
                 init_centers = self.high_score_centers
@@ -114,11 +114,11 @@ class ProgressiveKMeans:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
         
         # GPU 텐서를 CPU로 이동한 후 numpy로 변환
-        if torch.is_tensor(all_embeddings) and all_embeddings.is_cuda:
+        if torch.is_tensor(all_embeddings):
             all_embeddings_np = all_embeddings.cpu().numpy()
         else:
             all_embeddings_np = all_embeddings
-            
+        
         kmeans.fit(all_embeddings_np)
         cluster_centers = kmeans.cluster_centers_
         labels = kmeans.labels_

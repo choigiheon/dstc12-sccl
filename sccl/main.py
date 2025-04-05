@@ -49,26 +49,26 @@ def get_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0, help="")
     parser.add_argument('--print_freq', type=float, default=5, help="")
-    parser.add_argument('--device', type=str, default='cuda', help="")  
-    parser.add_argument('--model_name', type=str, default='sentence-transformers/all-', help="")
+    parser.add_argument('--device', type=str, default='mps', help="")  
+    parser.add_argument('--model_name', type=str, default='sentence-transformers/all-MiniLM-L6-v2', help="")
     parser.add_argument('--dropout', type=float, default=0.1, help="")
     # Dataset
-    parser.add_argument('--dataset_file', type=str, default='./dstc12-data/AppenBanking/all.jsonl')
+    parser.add_argument('--dataset_file', type=str, default='./dstc12-data/AppenBanking/all copy.jsonl')
     parser.add_argument('--result_file', type=str, default='./appen_banking_predicted.jsonl', help="결과를 저장할 파일 경로")
     parser.add_argument('--max_length', type=int, default=100)
     parser.add_argument('--batch_size', type=int, default=100)
     # Learning parameters
     parser.add_argument('--lr', type=float, default=5e-7, help="")
     parser.add_argument('--lr_scale', type=int, default=10, help="head에는 lr_scale 적용")
-    parser.add_argument('--joint-max_iter', type=int, default=9*10)
-    parser.add_argument('--pre-max_iter', type=int, default=9*10)
+    parser.add_argument('--joint-max_iter', type=int, default=10)
+    parser.add_argument('--pre-max_iter', type=int, default=10)
     # contrastive learning
     parser.add_argument('--augtype', type=str, default='virtual', choices=['virtual', 'explicit']) # 건들지 말 것.
     parser.add_argument('--temperature', type=float, default=0.5, help="temperature required by contrastive loss")
     parser.add_argument('--eta', type=float, default=10, help="")
     
     # Clustering
-    parser.add_argument('--num_clusters', type=int, default=14)
+    parser.add_argument('--num_clusters', type=int, default=3)
     parser.add_argument('--alpha', type=float, default=1.0)
     parser.add_argument('--use_progressive', type=bool, default=True)
     parser.add_argument('--n_init', type=int, default=100, help="Progressive KMeans의 초기화 횟수")

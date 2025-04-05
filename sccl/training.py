@@ -14,6 +14,8 @@ from tqdm import tqdm
 from utils.logger import statistics_log
 from utils.metric import Confusion
 from dataloader.dataloader import unshuffle_dstc12_loader
+import wandb
+import datetime
 
 import torch
 import torch.nn as nn
@@ -41,6 +43,21 @@ class SCCLvTrainer(nn.Module):
         
         self.gstep = 0
         print(f"*****Intialize SCCLv, temp:{self.args.temperature}, eta:{self.args.eta}\n")
+        
+        # wandb 초기화 (args에 wandb 설정이 없는 경우에 대비)
+        if not hasattr(args, 'wandb_project'):
+            self.args.wandb_project = "SCCL-DSTC12"
+        if not hasattr(args, 'wandb_entity'):
+            self.args.wandb_entity = None
+        
+        # wandb 설정 확인 및 초기화
+        if not wandb.run:
+            wandb.init(
+                project=self.args.wandb_project,
+                entity=self.args.wandb_entity,
+                config=vars(args),
+                name=f"SCCL-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}"
+            )
         
     def get_batch_token(self, text):
         token_feat = self.tokenizer.batch_encode_plus(
@@ -129,12 +146,13 @@ class SCCLvTrainer(nn.Module):
         train_loader_iter = iter(self.train_loader)
         
         # For reference
+        self.gstep = 0  # 초기 iteration 설정
         self.predict(self.args.result_file)
         metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
-        
+        print("\n[초기 평가 결과]")
         
         for i in tqdm(np.arange(max_iter)):
-            
+            self.gstep = i  # 현재 iteration 업데이트
             try:
                 batch = next(train_loader_iter)
             except:
@@ -148,9 +166,21 @@ class SCCLvTrainer(nn.Module):
 
             losses = self.train_step_virtual(input_ids, attention_mask, objective=TrainType.joint_train) if train_type == TrainType.joint_train else self.train_step_virtual(input_ids, attention_mask, objective=TrainType.pre_train)
                 
+            # wandb에 학습 손실 로깅
+            wandb.log({
+                "train/iteration": self.gstep,
+                "train/loss": losses["loss"],
+                "train/pos_mean": losses["pos_mean"],
+                "train/neg_mean": losses["neg_mean"]
+            })
+            
+            if train_type == TrainType.joint_train and "cluster_loss" in losses:
+                wandb.log({"train/cluster_loss": losses["cluster_loss"]})
+                
             if (i % self.args.eval_interval == 0) and (i != 0):
                 self.predict(self.args.result_file)
-                self.evaluate(self.args.dataset_file, self.args.result_file)
+                metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
+                
                 self.model.train()
 
             if (self.args.print_freq>0) and ((i%self.args.print_freq==0) or (i==max_iter)):
@@ -164,6 +194,9 @@ class SCCLvTrainer(nn.Module):
         self.cluster_model.update(all_embeddings)
 
         return None   
+    
+    def log_metrics(self, metrics, step):
+        wandb.log(metrics, step=step)
     
     def predict(self, result_file):
         dataloader = unshuffle_dstc12_loader(self.args)
@@ -222,21 +255,131 @@ class SCCLvTrainer(nn.Module):
                                        feat['attention_mask'].to(self.args.device), 
                                        task_type="evaluate")
                 
+                if embeddings.device.type != 'cpu':
+                    embeddings = embeddings.cpu()
+                
                 # 임베딩과 해당 발화문 저장
-                all_embeddings.append(embeddings.detach().cpu())
+                all_embeddings.append(embeddings.detach())
                 all_utterances.extend(text)
         
-        # 모든 임베딩 결합
-        all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
+        # 모든 임베딩 결합 및 numpy 변환
+        all_embeddings = torch.cat(all_embeddings, dim=0).cpu().numpy()
         return all_embeddings, all_utterances
 
+    def log_statics(self, dataset_file, result_file, metrics, embedding_model_name=None):
+        """
+        WandB를 이용하여 평가 결과를 로깅하는 함수
+        
+        Args:
+            dataset_file: 데이터셋 파일 경로
+            result_file: 결과 파일 경로
+            metrics: 평가 지표 딕셔너리
+            embedding_model_name: 임베딩 모델 이름 (선택적)
+        """
+        current_time = datetime.datetime.now()
+        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 평가 결과 및 파라미터 로깅
+        log_dict = {
+            "eval/timestamp": formatted_time,
+            "eval/iteration": self.gstep,
+        }
+        
+        # 평가 지표 로깅
+        for metric_name, metric_value in metrics.items():
+            log_dict[f"eval/{metric_name}"] = metric_value
+        
+        # 기본 파라미터 로깅
+        log_dict.update({
+            # 기본 설정
+            "params/seed": self.args.seed,
+            "params/print_freq": self.args.print_freq,
+            "params/device": self.args.device,
+            "params/model_name": self.args.model_name,
+            "params/dropout": self.args.dropout,
+            
+            # 데이터셋 설정
+            "params/dataset_file": dataset_file,
+            "params/result_file": result_file,
+            "params/num_clusters": self.args.num_clusters,
+            "params/max_length": self.args.max_length,
+            
+            # 학습 파라미터
+            "params/lr": self.args.lr,
+            "params/lr_scale": self.args.lr_scale if hasattr(self.args, 'lr_scale') else None,
+            "params/joint_max_iter": self.args.joint_max_iter,
+            "params/pre_max_iter": self.args.pre_max_iter if hasattr(self.args, 'pre_max_iter') else None,
+            
+            # 대조 학습 설정
+            "params/augtype": self.args.augtype if hasattr(self.args, 'augtype') else 'virtual',
+            "params/batch_size": self.args.batch_size,
+            "params/temperature": self.args.temperature,
+            "params/eta": self.args.eta,
+            
+            # 클러스터링 설정
+            "params/alpha": self.args.alpha if hasattr(self.args, 'alpha') else None,
+            "params/use_progressive": self.args.use_progressive if hasattr(self.args, 'use_progressive') else None,
+            "params/n_init": self.args.n_init if hasattr(self.args, 'n_init') else None,
+            
+            # 평가 설정
+            "params/eval_interval": self.args.eval_interval,
+        })
+        
+        if embedding_model_name:
+            log_dict["params/embedding_model"] = embedding_model_name
+            
+        # None 값 제거 (wandb에서 오류 방지)
+        log_dict = {k: v for k, v in log_dict.items() if v is not None}
+            
+        # wandb에 로그 추가
+        wandb.log(log_dict)
+        
+        # 콘솔 출력 (옵션)
+        print(f"\n[평가 로그 - {formatted_time}, Iteration: {self.gstep}]")
+        
+        # 파라미터 그룹별 출력
+        print("\n----- 기본 설정 -----")
+        print(f"  seed: {self.args.seed}")
+        print(f"  device: {self.args.device}")
+        print(f"  model_name: {self.args.model_name}")
+        
+        print("\n----- 데이터셋 설정 -----")
+        print(f"  dataset_file: {dataset_file}")
+        print(f"  result_file: {result_file}")
+        print(f"  max_length: {self.args.max_length}")
+        print(f"  batch_size: {self.args.batch_size}")
+        
+        print("\n----- 학습 및 클러스터링 설정 -----")
+        print(f"  num_clusters: {self.args.num_clusters}")
+        print(f"  temperature: {self.args.temperature}")
+        print(f"  eta: {self.args.eta}")
+        if hasattr(self.args, 'alpha'):
+            print(f"  alpha: {self.args.alpha}")
+        if hasattr(self.args, 'use_progressive'):
+            print(f"  use_progressive: {self.args.use_progressive}")
+        
+        print("\n----- 평가 결과 -----")
+        max_key_length = max(len(key) for key in metrics.keys())
+        for metric, value in metrics.items():
+            print(f"  {metric:{max_key_length}}: {value:.4f}")
+        print("="*50)
+            
     def evaluate(self, dataset_file, result_file):
         # 필요한 모듈 임포트
         import sys
         import os
         
-        # dstc12 패키지 경로 추가
-        sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts'))
+        # dstc12 패키지 경로 추가 (OS 독립적인 방법)
+        current_dir = os.path.dirname(os.path.abspath(__file__))  # sccl 디렉토리
+        project_root = os.path.dirname(current_dir)  # 프로젝트 루트 디렉토리
+        src_path = os.path.join(project_root, 'src')
+        if os.path.exists(src_path):
+            sys.path.append(src_path)
+        
+        # 현재 작업 디렉토리 기준 상대 경로 추가
+        src_alt_path = os.path.join(os.getcwd(), 'src')
+        if os.path.exists(src_alt_path):
+            sys.path.append(src_alt_path)
         
         from dstc12.eval import (
             acc,
@@ -301,5 +444,8 @@ class SCCLvTrainer(nn.Module):
         
         for metric, value in metrics.items():
             print(f'{metric}: {value:.3f}')
+            
+        # 로그 함수 호출
+        self.log_statics(dataset_file, result_file, metrics, embedding_model_name)
             
         return metrics
