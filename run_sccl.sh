@@ -29,4 +29,4 @@ python3 sccl/cluster.py \
     --n-init 100 \
     --kmeans-interval 1 \
     --print-freq 5 \
-    --eval-interval 9 \
+    --eval-interval 1 \
