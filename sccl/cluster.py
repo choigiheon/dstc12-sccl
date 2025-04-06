@@ -37,7 +37,11 @@ def run(args):
     cluster_model = ProgressiveKMeans(args.n_clusters, args.max_length, args)
     trainer = SCCLvTrainer(model, tokenizer, optimizer, train_loader, cluster_model, args)
     trainer.train(train_type=TrainType.pre_train)
+    
     model.set_cluster_centers(cluster_centers=cluster_model.get_hsc())
+    optimizer = get_optimizer(model, args) # 파라미터가 변경되었으므로 새로운 optimizer 생성
+    trainer.set_optimizer(optimizer)
+    
     trainer.train(train_type=TrainType.joint_train)
     cluster_label_map = trainer.predict(args.result_file)
     trainer.evaluate(args.dataset_file, args.result_file)

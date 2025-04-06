@@ -40,7 +40,6 @@ class SCCLModel(nn.Module):
             
             mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
             mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
-            print(self.cluster_centers)
             return mean_output_1, mean_output_2
         
         elif task_type == "explicit":
