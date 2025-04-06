@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument('--n-clusters', type=int, default=14)
     parser.add_argument('--random-state', type=int, default=42)
     # parser.add_argument('--embedding-model-name', type=str, default='sentence-transformers/all-mpnet-base-v2')
-    parser.add_argument('--llm-name', type=str, default='meta-llama/Llama-3.2-3B-Instruct')
+    parser.add_argument('--llm-name', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
     parser.add_argument('--cluster-label-map', type=str, default='./cluster_label_map.json')
     return parser.parse_args()
 
@@ -47,7 +47,6 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
         clustered_utterances[cluster_with_label[utterance]].append(utterance)
     cluster_label_map = {}
     for i, cluster in tqdm.tqdm(enumerate(clustered_utterances)):
-        # 각 클러스터마다 새로운 LLM 인스턴스와 체인 생성
 
         outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
         for utterance in cluster:
