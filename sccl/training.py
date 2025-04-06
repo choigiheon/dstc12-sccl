@@ -123,6 +123,7 @@ class SCCLvTrainer(nn.Module):
     
     def train(self, train_type):
         max_iter = self.args.joint_max_iter if train_type == TrainType.joint_train else self.args.pre_max_iter
+        print("Train Type: ", "pre_train" if train_type == TrainType.pre_train else "joint_train")
         print('\n={}/{}=Iterations/Batches'.format(max_iter, len(self.train_loader)))
         self.model.train()
         
@@ -141,8 +142,9 @@ class SCCLvTrainer(nn.Module):
                 train_loader_iter = iter(self.train_loader)
                 batch = next(train_loader_iter)
                 
-                all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
-                self.cluster_model.update(all_embeddings) # 에포크가 끝날떄마다 클러스터 업데이트
+                if (i % self.args.kmeans_interval == 0):
+                    all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
+                    self.cluster_model.update(all_embeddings) # 에포크가 끝날떄마다 클러스터 업데이트
 
             input_ids, attention_mask = self.prepare_transformer_input(batch, self.args)
 
@@ -210,6 +212,8 @@ class SCCLvTrainer(nn.Module):
             for dialogue in dataset_predicted:
                 print(json.dumps(dialogue), file=result_out)
                 
+        return cluster_label_map
+                
     def get_embeddings(self, dataloader):
         all_embeddings = []
         all_utterances = []
@@ -236,6 +240,7 @@ class SCCLvTrainer(nn.Module):
         import os
         
         # dstc12 패키지 경로 추가
+        # 오류 생기면, ". ./set_path.sh" 실행.
         sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts'))
         
         from dstc12.eval import (

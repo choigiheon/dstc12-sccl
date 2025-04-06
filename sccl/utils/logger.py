@@ -57,3 +57,38 @@ def statistics_log(tensorboard, losses=None, global_step=0):
 
 
 
+def print_args(args):
+    print("\n===== 사용한 파라미터 =====")
+    print("\n----- 기본 설정 -----")
+    print(f"seed: {args.seed}")
+    print(f"print_freq: {args.print_freq}")
+    print(f"device: {args.device}")
+    print(f"model_name: {args.model_name}")
+    print(f"dropout: {args.dropout}")
+    
+    print("\n----- 데이터셋 설정 -----")
+    print(f"dataset_file: {args.dataset_file}")
+    print(f"result_file: {args.result_file}")
+    print(f"num_clusters: {args.num_clusters}")
+    print(f"max_length: {args.max_length}")
+    
+    print("\n----- 학습 파라미터 -----")
+    print(f"lr: {args.lr}")
+    print(f"lr_scale: {args.lr_scale}")
+    print(f"joint-max_iter: {args.joint_max_iter}")
+    print(f"pre-max_iter: {args.pre_max_iter}")
+    
+    print("\n----- 대조 학습 설정 -----")
+    print(f"augtype: {args.augtype}")
+    print(f"batch_size: {args.batch_size}")
+    print(f"temperature: {args.temperature}")
+    print(f"eta: {args.eta}")
+    
+    print("\n----- 클러스터링 설정 -----")
+    print(f"alpha: {args.alpha}")
+    # print(f"interval: {args.interval}")
+    print(f"use_progressive: {args.use_progressive}")
+    
+    print("\n----- 평가 설정 -----")
+    print(f"eval_interval: {args.eval_interval}")
+    print("\n==========================\n")
