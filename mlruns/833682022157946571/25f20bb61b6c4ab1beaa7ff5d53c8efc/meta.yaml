@@ -1,0 +1,15 @@
+artifact_uri: file:///Users/giheon/Development/dstc12/mlruns/833682022157946571/25f20bb61b6c4ab1beaa7ff5d53c8efc/artifacts
+end_time: 1743980624046
+entry_point_name: ''
+experiment_id: '833682022157946571'
+lifecycle_stage: active
+run_id: 25f20bb61b6c4ab1beaa7ff5d53c8efc
+run_name: Bayesian_Optimization
+run_uuid: 25f20bb61b6c4ab1beaa7ff5d53c8efc
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1743980086337
+status: 4
+tags: []
+user_id: giheon
