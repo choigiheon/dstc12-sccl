@@ -68,15 +68,15 @@ def parse_args():
 
 
 def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clusters, random_state):
-    # llm = get_llm(llm_name)
-    # chain = (
-    #     LABEL_CLUSTERS_PROMPT |
-    #     llm |
-    #     RunnableParallel(
-    #         theme_label=DotAllRegexParser(regex=r'<theme_label>(.*?)</theme_label>', output_keys=['theme_label']),
-    #         theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
-    #     )
-    #  )
+    llm = get_llm(llm_name)
+    chain = (
+        LABEL_CLUSTERS_PROMPT |
+        llm |
+        RunnableParallel(
+            theme_label=DotAllRegexParser(regex=r'<theme_label>(.*?)</theme_label>', output_keys=['theme_label']),
+            theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
+        )
+     )
     # embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
     # query_embeddings = [embeddings.embed_query(utterance) for utterance in tqdm.tqdm(utterances)]
     # kmeans = KMeans(n_clusters=n_clusters, n_init=1, init='k-means++', random_state=random_state)
@@ -97,16 +97,6 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
         clustered_utterances[cluster_with_label[utterance]].append(utterance)
     cluster_label_map = {}
     for i, cluster in tqdm.tqdm(enumerate(clustered_utterances)):
-        # 각 클러스터마다 새로운 LLM 인스턴스와 체인 생성
-        llm = get_llm(llm_name)
-        chain = (
-            LABEL_CLUSTERS_PROMPT |
-            llm |
-            RunnableParallel(
-                theme_label=DotAllRegexParser(regex=r'<theme_label>(.*?)</theme_label>', output_keys=['theme_label']),
-                theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
-            )
-        )
         outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
         for utterance in cluster:
             cluster_label_map[utterance] = outputs_parsed['theme_label']['theme_label']

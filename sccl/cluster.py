@@ -56,12 +56,11 @@ def get_args(argv):
     parser.add_argument('--dataset_file', type=str, default='./dstc12-data/AppenBanking/all.jsonl')
     parser.add_argument('--result_file', type=str, default='./appen_banking_predicted.jsonl', help="결과를 저장할 파일 경로")
     parser.add_argument('--max_length', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=40)
-    # Learning parameters
-    parser.add_argument('--lr', type=float, default=7e-7, help="")
+    parser.add_argument('--batch_size', type=int, default=200)
+    parser.add_argument('--lr', type=float, default=5e-7, help="")
     parser.add_argument('--lr_scale', type=int, default=10, help="head에는 lr_scale 적용")
-    parser.add_argument('--joint-max_iter', type=int, default=41*10)
-    parser.add_argument('--pre-max_iter', type=int, default=41*10)
+    parser.add_argument('--joint-max_iter', type=int, default=293*3)
+    parser.add_argument('--pre-max_iter', type=int, default=293*3)
     # contrastive learning
     parser.add_argument('--augtype', type=str, default='virtual', choices=['virtual', 'explicit']) # 건들지 말 것.
     parser.add_argument('--temperature', type=float, default=0.5, help="temperature required by contrastive loss")
@@ -72,10 +71,10 @@ def get_args(argv):
     parser.add_argument('--alpha', type=float, default=1.0)
     parser.add_argument('--use_progressive', type=bool, default=True)
     parser.add_argument('--n_init', type=int, default=100, help="Kmeans++의 초기화 횟수")
-    parser.add_argument('--kmeans-interval', type=int, default=2, help="Progressive KMeans 수행 간격 (epoch 기준)")
+    parser.add_argument('--kmeans-interval', type=int, default=1, help="Progressive KMeans 수행 간격 (epoch 기준)")
     
     # evaluation
-    parser.add_argument('--eval_interval', type=int, default=41, help="eval 결과를 출력할 간격 (iter 기준)")
+    parser.add_argument('--eval_interval', type=int, default=293, help="eval 결과를 출력할 간격 (iter 기준)")
     
     args = parser.parse_args(argv)
     print(args)

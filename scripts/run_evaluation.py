@@ -65,7 +65,7 @@ def parse_args():
     parser.add_argument('ground_truth_file', type=str)
     parser.add_argument('predictions_file', type=str)
     parser.add_argument('--embedding-model-name', type=str, default='sentence-transformers/all-mpnet-base-v2')
-    parser.add_argument('--llm-name', type=str, default='')
+    parser.add_argument('--llm-name', type=str, default='lmsys/vicuna-13b-v1.5')
     return parser.parse_args()
 
 

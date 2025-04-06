@@ -59,11 +59,12 @@ def turns_to_id_map(turns):
 def get_llm(llm_name):
     tokenizer = AutoTokenizer.from_pretrained(llm_name)
 
+
     model = AutoModelForCausalLM.from_pretrained(
         llm_name,
         # torch_dtype=torch.bfloat16,
         torch_dtype=torch.float16,
-        device_map="mps"  # Automatically distribute the model across GPUs
+        device_map="mps",  # Automatically distribute the model across GPUs
     )
 
     hf_pipeline = pipeline(
@@ -71,11 +72,11 @@ def get_llm(llm_name):
         model=model,
         tokenizer=tokenizer,
         max_new_tokens=512,
-        do_sample=False,
-        temperature=1.0,
+        do_sample=True,
+        temperature=0.8,
         top_p=1.0,
-        repetition_penalty=1.03,
-        return_full_text=False
+        repetition_penalty=1.2,
+        return_full_text=False,
     )
 
     # Wrap the pipeline in LangChain's HuggingFacePipeline
