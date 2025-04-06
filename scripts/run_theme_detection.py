@@ -31,66 +31,16 @@ def parse_args():
     return parser.parse_args()
 
 
-# def find_second_closest_cluster(emb, centroids):
-#     distances = [np.linalg.norm(emb - centroid) for centroid in centroids]
-#     sorted_indices = np.argsort(distances)
-#     return sorted_indices[1]
-
-
-# def apply_preferences_to_clusters(utterances, utterance_embs, cluster_labels, cluster_centroids, shouldlink_pairs, cannot_link_pairs):
-#     assert len(utterances) == len(cluster_labels)
-
-#     datapoint_modification_counter = collections.defaultdict(lambda: 0)
-
-#     utterance_cluster_mapping = collections.defaultdict(lambda: -1)
-#     utterance_idx_mapping = collections.defaultdict(lambda: -1)
-#     for utt_idx, cluster_label in enumerate(cluster_labels):
-#         utterance = utterances[utt_idx]
-#         utterance_cluster_mapping[utterance] = cluster_label
-#         utterance_idx_mapping[utterance] = utt_idx
-#     modified_cluster_labels = copy.deepcopy(cluster_labels)
-#     for utt_a, utt_b in shouldlink_pairs:
-#         cluster_a, cluster_b = utterance_cluster_mapping[utt_a], utterance_cluster_mapping[utt_b]
-#         if cluster_a != cluster_b:
-#             utt_b_idx = utterance_idx_mapping[utt_b]
-#             modified_cluster_labels[utt_b_idx] = cluster_a
-#             utterance_cluster_mapping[utt_b] = cluster_a
-#             datapoint_modification_counter[utt_b_idx] += 1
-#     for utt_a, utt_b in cannot_link_pairs:
-#         cluster_a, cluster_b = utterance_cluster_mapping[utt_a], utterance_cluster_mapping[utt_b]
-#         if cluster_a == cluster_b:
-#             utt_b_idx = utterance_idx_mapping[utt_b]
-#             utt_b_new_cluster = find_second_closest_cluster(utterance_embs[utt_b_idx], cluster_centroids)
-#             modified_cluster_labels[utt_b_idx] = utt_b_new_cluster
-#             utterance_cluster_mapping[utt_b] = utt_b_new_cluster
-#             datapoint_modification_counter[utt_b_idx] += 1
-#     return modified_cluster_labels
-
-
 def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clusters, random_state):
-    # llm = get_llm(llm_name)
-    # chain = (
-    #     LABEL_CLUSTERS_PROMPT |
-    #     llm |
-    #     RunnableParallel(
-    #         theme_label=DotAllRegexParser(regex=r'<theme_label>(.*?)</theme_label>', output_keys=['theme_label']),
-    #         theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
-    #     )
-    #  )
-    # embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
-    # query_embeddings = [embeddings.embed_query(utterance) for utterance in tqdm.tqdm(utterances)]
-    # kmeans = KMeans(n_clusters=n_clusters, n_init=1, init='k-means++', random_state=random_state)
-    # kmeans.fit(query_embeddings)
-    # clusters = kmeans.labels_
-    # centroids = kmeans.cluster_centers_
-    # clusters_with_preferences = apply_preferences_to_clusters(
-    #     utterances,
-    #     query_embeddings,
-    #     clusters,
-    #     centroids,
-    #     linking_preferences['should_link'],
-    #     linking_preferences['cannot_link']
-    # )
+    llm = get_llm(llm_name)
+    chain = (
+        LABEL_CLUSTERS_PROMPT |
+        llm |
+        RunnableParallel(
+            theme_label=DotAllRegexParser(regex=r'<theme_label>(.*?)</theme_label>', output_keys=['theme_label']),
+            theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
+        )
+    )
     cluster_with_label = json.load(open(args.cluster_label_map)) # prefernce가 이미 clustering에 적용되었다고 가정함.
     clustered_utterances = [[] for _ in range(n_clusters)]
     for i, utterance in enumerate(iterable=cluster_with_label):
@@ -98,15 +48,7 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
     cluster_label_map = {}
     for i, cluster in tqdm.tqdm(enumerate(clustered_utterances)):
         # 각 클러스터마다 새로운 LLM 인스턴스와 체인 생성
-        llm = get_llm(llm_name)
-        chain = (
-            LABEL_CLUSTERS_PROMPT |
-            llm |
-            RunnableParallel(
-                theme_label=DotAllRegexParser(regex=r'<theme_label>(.*?)</theme_label>', output_keys=['theme_label']),
-                theme_label_explanation=DotAllRegexParser(regex=r'<theme_label_explanation>(.*?)</theme_label_explanation>', output_keys=['theme_label_explanation'])
-            )
-        )
+
         outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
         for utterance in cluster:
             cluster_label_map[utterance] = outputs_parsed['theme_label']['theme_label']
