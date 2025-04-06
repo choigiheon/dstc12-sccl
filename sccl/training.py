@@ -327,3 +327,6 @@ class SCCLvTrainer(nn.Module):
             print(f'{metric}: {value:.3f}')
             
         return metrics
+
+    def set_optimizer(self, optimizer):
+        self.optimizer = optimizer
