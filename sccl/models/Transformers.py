@@ -30,16 +30,17 @@ class SCCLModel(nn.Module):
         self.cluster_centers = torch.zeros(1, 1) # dummy 클러스터 센터
       
     
-    def forward(self, input_ids, attention_mask, task_type="virtual"):
+    def forward(self, input_ids, attention_mask, task_type="simcse"):
         if task_type == "evaluate":
             return self.get_mean_embeddings(input_ids, attention_mask)
         
-        elif task_type == "virtual":
+        elif task_type == "simcse":
             input_ids_1, input_ids_2 = torch.unbind(input_ids, dim=1)
             attention_mask_1, attention_mask_2 = torch.unbind(attention_mask, dim=1) 
             
             mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
             mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
+            print(self.cluster_centers)
             return mean_output_1, mean_output_2
         
         elif task_type == "explicit":
@@ -52,7 +53,7 @@ class SCCLModel(nn.Module):
             return mean_output_1, mean_output_2, mean_output_3
         
         else:
-            raise Exception("TRANSFORMER ENCODING TYPE ERROR! OPTIONS: [EVALUATE, VIRTUAL, EXPLICIT]")
+            raise Exception("TRANSFORMER ENCODING TYPE ERROR! OPTIONS: [EVALUATE, SIMCSE, EXPLICIT]")
       
     
     def get_mean_embeddings(self, input_ids, attention_mask):

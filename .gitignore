@@ -1,0 +1,21 @@
+# Python 바이트 코드 파일
+__pycache__/
+*/__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# 분포 / 패키징
+dist/
+build/
+*.egg-info/
+
+# 가상 환경
+venv/
+env/
+.env/
+
+# 로컬 개발 설정
+.idea/
+.vscode/
+.DS_Store

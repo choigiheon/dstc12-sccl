@@ -20,7 +20,7 @@ class DotAllRegexParser(RegexParser):
             return {key: match.group(i + 1) for i, key in enumerate(self.output_keys)}
         else:
             if self.default_output_key is None:
-                raise ValueError(f"Could not parse output: {text}")
+                raise ValueError(f"Could not parse output \n text: {text},\ntext_length: {len(text)}")
             else:
                 return {
                     key: text if key == self.default_output_key else ""
@@ -56,13 +56,14 @@ def turns_to_id_map(turns):
     return result
 
 
-def get_llm(llm_name):
+def get_llm(llm_name, device):
     tokenizer = AutoTokenizer.from_pretrained(llm_name)
 
     model = AutoModelForCausalLM.from_pretrained(
         llm_name,
-        torch_dtype=torch.bfloat16,
-        device_map="auto"  # Automatically distribute the model across GPUs
+        # torch_dtype=torch.bfloat16,
+        torch_dtype=torch.float16,
+        device_map=device  # Automatically distribute the model across GPUs
     )
 
     hf_pipeline = pipeline(

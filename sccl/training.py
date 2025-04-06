@@ -63,7 +63,7 @@ class SCCLvTrainer(nn.Module):
             input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1), feat3['input_ids'].unsqueeze(1)], dim=1)
             attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1), feat3['attention_mask'].unsqueeze(1)], dim=1)
             
-        elif len(batch) == 1: # Virtual Augmentation
+        elif len(batch) == 1: # simcse Augmentation
             text = batch['text']
             feat1 = self.get_batch_token(text)
             feat2 = feat1.copy()
@@ -74,9 +74,9 @@ class SCCLvTrainer(nn.Module):
         return input_ids.to(self.args.device), attention_mask.to(self.args.device)
         
         
-    def train_step_virtual(self, input_ids, attention_mask, objective):
+    def train_step_simcse(self, input_ids, attention_mask, objective):
         
-        embd1, embd2 = self.model(input_ids, attention_mask, task_type="virtual")
+        embd1, embd2 = self.model(input_ids, attention_mask, task_type="simcse")
 
         # Instance-CL loss
         feat1, feat2 = self.model.contrast_logits(embd1, embd2)
@@ -122,44 +122,42 @@ class SCCLvTrainer(nn.Module):
         return losses
     
     def train(self, train_type):
-        max_iter = self.args.joint_max_iter if train_type == TrainType.joint_train else self.args.pre_max_iter
+        max_epoch = self.args.joint_train_epoch if train_type == TrainType.joint_train else self.args.pre_train_epoch
         print("Train Type: ", "pre_train" if train_type == TrainType.pre_train else "joint_train")
-        print('\n={}/{}=Iterations/Batches'.format(max_iter, len(self.train_loader)))
+        print('\n={}/{}=Epochs/Batches'.format(max_epoch, len(self.train_loader)))
         self.model.train()
-        
-        train_loader_iter = iter(self.train_loader)
         
         # For reference
         self.predict(self.args.result_file)
         metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
+        print(f"Initial metrics: {metrics}")
         
-        
-        for i in tqdm(np.arange(max_iter)):
+        for epoch in tqdm(np.arange(max_epoch)):
             
-            try:
-                batch = next(train_loader_iter)
-            except:
-                train_loader_iter = iter(self.train_loader)
-                batch = next(train_loader_iter)
+            # 각 에포크마다 전체 데이터셋을 순회
+            batch_count = 0
+            for batch in tqdm(self.train_loader, desc=f"에포크 {epoch+1}/{max_epoch}"):
+                input_ids, attention_mask = self.prepare_transformer_input(batch, self.args)
                 
-                if (i % self.args.kmeans_interval == 0):
-                    all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
-                    self.cluster_model.update(all_embeddings) # 에포크가 끝날떄마다 클러스터 업데이트
-
-            input_ids, attention_mask = self.prepare_transformer_input(batch, self.args)
-
-            losses = self.train_step_virtual(input_ids, attention_mask, objective=TrainType.joint_train) if train_type == TrainType.joint_train else self.train_step_virtual(input_ids, attention_mask, objective=TrainType.pre_train)
+                losses = self.train_step_simcse(input_ids, attention_mask, objective=TrainType.joint_train) if train_type == TrainType.joint_train else self.train_step_simcse(input_ids, attention_mask, objective=TrainType.pre_train)
                 
-            if (i % self.args.eval_interval == 0) and (i != 0):
+                batch_count += 1
+                
+                # 손실 출력
+                if (self.args.print_freq > 0) and ((batch_count % self.args.print_freq == 0)):
+                    print(f"에포크 {epoch+1}/{max_epoch}, 배치 {batch_count}, loss: {losses['loss']}, pos_mean: {losses['pos_mean']}, neg_mean: {losses['neg_mean']}")
+                    if train_type == TrainType.joint_train:
+                        print(f"cluster_loss: {losses['cluster_loss']}")
+            
+            if epoch % self.args.eval_interval == 0:
                 self.predict(self.args.result_file)
                 self.evaluate(self.args.dataset_file, self.args.result_file)
                 self.model.train()
-
-            if (self.args.print_freq>0) and ((i%self.args.print_freq==0) or (i==max_iter)):
-                print(f"loss: {losses['loss']}, pos_mean: {losses['pos_mean']}, neg_mean: {losses['neg_mean']}")
-                if train_type == TrainType.joint_train:
-                    print(f"cluster_loss: {losses['cluster_loss']}")
-                self.model.train()
+            
+            # 에포크가 끝날 때마다 클러스터 업데이트 수행
+            if (epoch % self.args.kmeans_interval == 0):
+                all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
+                self.cluster_model.update(all_embeddings)
                 
         # 마지막 배치에서 클러스터 업데이트
         all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
@@ -168,6 +166,25 @@ class SCCLvTrainer(nn.Module):
         return None   
     
     def predict(self, result_file):
+        """
+        클러스터링 결과를 예측하고 결과 파일에 저장하는 함수입니다.
+        
+        Args:
+            result_file (str): 예측 결과를 저장할 파일 경로
+            
+        Returns:
+            dict: 각 발화문에 대한 클러스터 라벨 매핑 (utterance -> cluster_label)
+            
+        프로세스:
+            1. 데이터로더를 통해 모든 발화문을 불러옵니다.
+            2. 모델을 평가 모드로 설정합니다.
+            3. 모든 발화문의 임베딩을 계산합니다.
+            4. K-means 클러스터링을 수행하여 각 발화문에 클러스터 라벨을 할당합니다.
+            5. 원본 데이터셋에 예측된 클러스터 라벨을 추가합니다.
+            6. 결과를 파일로 저장합니다.
+        """
+
+        
         dataloader = unshuffle_dstc12_loader(self.args)
         print('---- {} prediction batches ----'.format(len(dataloader)))     
         self.model.eval()
@@ -176,7 +193,7 @@ class SCCLvTrainer(nn.Module):
         all_embeddings, all_utterances = self.get_embeddings(dataloader)
         cluster_labels, high_score_centers = self.cluster_model.predict(all_embeddings) 
         
-        print(f"클러스터링 완료: {self.args.num_clusters}개 클러스터")
+        print(f"클러스터링 완료: {self.args.n_clusters}개 클러스터")
         
         # 각 발화문에 클러스터 라벨 매핑
         cluster_label_map = {utterance: str(label) for utterance, label in zip(all_utterances, cluster_labels)}
@@ -235,12 +252,14 @@ class SCCLvTrainer(nn.Module):
         return all_embeddings, all_utterances
 
     def evaluate(self, dataset_file, result_file):
+        """
+        run_evaluate.py 코드를 참고하여 작성되었습니다.
+        """
         # 필요한 모듈 임포트
         import sys
         import os
         
         # dstc12 패키지 경로 추가
-        # 오류 생기면, ". ./set_path.sh" 실행.
         sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scripts'))
         
         from dstc12.eval import (

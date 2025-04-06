@@ -54,7 +54,7 @@ def run_llm_eval(predictions, llm_name):
     }
 
 
-def main(references, predictions, embedding_model_name, llm_name):
+def main(references, predictions, embedding_model_name):
     non_llm_metrics = run_non_llm_eval(references, predictions, embedding_model_name)
     # llm_metrics = run_llm_eval(predictions, llm_name)
     return non_llm_metrics # | llm_metrics
@@ -65,7 +65,6 @@ def parse_args():
     parser.add_argument('ground_truth_file', type=str)
     parser.add_argument('predictions_file', type=str)
     parser.add_argument('--embedding-model-name', type=str, default='sentence-transformers/all-mpnet-base-v2')
-    parser.add_argument('--llm-name', type=str, default='lmsys/vicuna-13b-v1.5')
     return parser.parse_args()
 
 
@@ -91,6 +90,6 @@ if __name__ == '__main__':
             label1_references.append(utterance_gt['theme_label']['label_1'])
             label2_references.append(utterance_gt['theme_label']['label_2'])
             label_predictions.append(utterance_pred['theme_label_predicted'])
-    metrics = main((label1_references, label2_references), label_predictions, args.embedding_model_name, args.llm_name)
+    metrics = main((label1_references, label2_references), label_predictions, args.embedding_model_name)
     for metric, value in metrics.items():
         print(f'{metric}: {value:.3f}')

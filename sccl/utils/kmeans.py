@@ -69,24 +69,23 @@ def get_kmeans_centers(model, tokenizer, train_loader, num_classes, max_length, 
 Progressive KMeans
 """
 class ProgressiveKMeans:
-    def __init__(self, n_clusters, max_length, args, use_progressive=True):
+    def __init__(self, n_clusters, max_length, args):
         self.n_clusters = n_clusters
         self.max_length = max_length
         self.args = args
         self.cluster_centers = None
         self.high_score_centers = None
         self.labels = None
-        self.use_progressive = use_progressive
         self.n_init = args.n_init
     
     def update(self, all_embeddings):
-        if self.use_progressive and self.high_score_centers is not None:
+        if self.high_score_centers is not None:
             # GPU 텐서인 high_score_centers를 CPU로 이동시킨 후 numpy로 변환
             if isinstance(self.high_score_centers, torch.Tensor):
                 init_centers = self.high_score_centers.cpu().numpy()
             else:
                 init_centers = self.high_score_centers
-            kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init=init_centers, random_state=self.args.seed)
+            kmeans = KMeans(n_clusters=self.n_clusters, init=init_centers, random_state=self.args.seed)
         else:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
             
@@ -103,13 +102,13 @@ class ProgressiveKMeans:
         self.high_score_centers = self.calculate_high_score_centers(all_embeddings_np, self.cluster_centers, self.labels)
         
     def predict(self, all_embeddings):
-        if self.use_progressive and self.high_score_centers is not None:
+        if self.high_score_centers is not None:
             # GPU 텐서인 high_score_centers를 CPU로 이동시킨 후 numpy로 변환
             if isinstance(self.high_score_centers, torch.Tensor):
                 init_centers = self.high_score_centers.cpu().numpy()
             else:
                 init_centers = self.high_score_centers
-            kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init=init_centers, random_state=self.args.seed)
+            kmeans = KMeans(n_clusters=self.n_clusters, init=init_centers, random_state=self.args.seed)
         else:
             kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
         

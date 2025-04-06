@@ -21,7 +21,6 @@ import numpy as np
 
 def run(args):
     # dataset loader
-    # train_loader = dataloader.explict_augmentation_loader(args) if args.augtype == "explicit" else dataloader.virtual_augmentation_loader(args)
     torch.manual_seed(args.seed)
     train_loader = dataloader.dstc12_loader(args)
 
@@ -35,7 +34,7 @@ def run(args):
     # optimizer 
     optimizer = get_optimizer(model, args)
     
-    cluster_model = ProgressiveKMeans(args.num_clusters, args.max_length, args, use_progressive=args.use_progressive)
+    cluster_model = ProgressiveKMeans(args.n_clusters, args.max_length, args)
     trainer = SCCLvTrainer(model, tokenizer, optimizer, train_loader, cluster_model, args)
     trainer.train(train_type=TrainType.pre_train)
     model.set_cluster_centers(cluster_centers=cluster_model.get_hsc())
@@ -48,38 +47,35 @@ def run(args):
 def get_args(argv):
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=0, help="")
-    parser.add_argument('--print_freq', type=float, default=5, help="")
-    parser.add_argument('--device', type=str, default='mps', help="")  
-    parser.add_argument('--model_name', type=str, default='sentence-transformers/all-mpnet-base-v2', help="")
+    parser.add_argument('--device', type=str, default='auto', help="")  
+    parser.add_argument('--model-name', type=str, default='sentence-transformers/all-mpnet-base-v2', help="")
     parser.add_argument('--dropout', type=float, default=0.1, help="")
     # Dataset
-    parser.add_argument('--dataset_file', type=str, default='./dstc12-data/AppenBanking/all.jsonl')
-    parser.add_argument('--result_file', type=str, default='./appen_banking_predicted.jsonl', help="결과를 저장할 파일 경로")
-    parser.add_argument('--max_length', type=int, default=100)
-    parser.add_argument('--batch_size', type=int, default=200)
+    parser.add_argument('--dataset-file', type=str, default='./dstc12-data/AppenBanking/all copy.jsonl')
+    parser.add_argument('--result-file', type=str, default='./appen_banking_predicted.jsonl')
+    parser.add_argument('--max-length', type=int, default=100)
+    parser.add_argument('--batch-size', type=int, default=100)
     parser.add_argument('--lr', type=float, default=5e-7, help="")
-    parser.add_argument('--lr_scale', type=int, default=10, help="head에는 lr_scale 적용")
-    parser.add_argument('--joint-max_iter', type=int, default=9*3)
-    parser.add_argument('--pre-max_iter', type=int, default=9*3)
+    parser.add_argument('--pre-train-epoch', type=int, default=3)
+    parser.add_argument('--joint-train-epoch', type=int, default=3)
+    
     # contrastive learning
-    parser.add_argument('--augtype', type=str, default='virtual', choices=['virtual', 'explicit']) # 건들지 말 것.
+    parser.add_argument('--lr-scale', type=int, default=10)
+    parser.add_argument('--augtype', type=str, default='simcse', choices=['simcse', 'explicit'])
     parser.add_argument('--temperature', type=float, default=0.5, help="temperature required by contrastive loss")
-    parser.add_argument('--eta', type=float, default=1000, help="")
+    parser.add_argument('--eta', type=float, default=10, help="")
     
     # Clustering
-    parser.add_argument('--num_clusters', type=int, default=14)
+    parser.add_argument('--n-clusters', type=int, default=14)
     parser.add_argument('--alpha', type=float, default=1.0)
-    parser.add_argument('--use_progressive', type=bool, default=True)
-    parser.add_argument('--n_init', type=int, default=100, help="Kmeans++의 초기화 횟수")
+    parser.add_argument('--n-init', type=int, default=100, help="Kmeans++의 초기화 횟수")
     parser.add_argument('--kmeans-interval', type=int, default=1, help="Progressive KMeans 수행 간격 (epoch 기준)")
     
     # evaluation
-    parser.add_argument('--eval_interval', type=int, default=9, help="eval 결과를 출력할 간격 (iter 기준)")
+    parser.add_argument('--print-freq', type=float, default=5, help="loss 출력 간격 (iter 기준)")
+    parser.add_argument('--eval-interval', type=int, default=1, help="eval 결과를 출력할 간격 (epoch 기준)")
     
     args = parser.parse_args(argv)
-    print(args)
-    
-    args.resPath = None
 
     return args
 

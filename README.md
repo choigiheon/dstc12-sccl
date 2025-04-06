@@ -1,133 +1,42 @@
-# Dialog System Technology Challenge 12 - Controllable Conversation Theme Detection track
+# DSTC12
+본 repository는 dstc11에서 best paper를 수상한 "A Two-Stage Progressive Intent Clustering for Task-Oriented Dialogue"를 구현한 repository 입니다.
 
-## *** To participate in the track, please fill out the [registration form](https://forms.gle/URgeLuSUL95BHgWb6) ***
-Task description: [proposal paper](https://drive.google.com/file/d/1TkVYdcQenWH_MVXHGEX3O7BGMyTj5Xd_/view)
 
-DSTC12 home: https://dstc12.dstc.community/tracks
+SCCL Repo를 포킹한 후, SimCSE와 Two Stage Learning, Progressive K-Means 기능을 추가했습니다.
+포킹한 폴더는 sccl/... 입니다.
 
-## 1. Motivation  
-Theme detection plays a critical role in analyzing conversations, particularly in domains like customer support, sales, and marketing. Automatically identifying and categorizing themes can significantly reduce the time spent on manual analysis of lengthy conversations.  
 
-While theme detection is similar to dialogue intent detection, the key difference lies in its purpose. Intent detection is used in downstream dialogue systems where responses are predefined based on intent categories. In contrast, theme detection provides a summary of the conversation from the customer’s perspective, allowing for various surface forms and user-driven customizations.  
+## 사용법
+모든 명령어는 root 디렉토리(dstc12)에서 실행시켜야 합니다.
+잘 작동되는지 테스트용으로 inference_model은 Qwen/Qwen2.5-3B, 데이터셋은 10개만 샘플링(AppenBanking/all_sampled.jsonl)하도록 sh 파일이 미리 세팅되어 있습니다.
+실제로 사용하려면 embedding/infernce_model과 dataset_file의 경로를 sh 파일 내에서 바꾸세요.
+sh 파일은 run_sccl.sh/run_theme_detection.sh/run_evaluation.sh 총 3개 있습니다.
 
-![Task diagram](/img/DSTC12_task_large.png)
-
-### **Challenges for Participants:**  
-- Designing a system that can **capture nuanced themes** beyond predefined intent categories.  
-- Handling **multiple valid surface forms** for theme labels while maintaining consistency.  
-- Balancing **style following and accuracy** in theme detection without compromising clarity.  
-
-## 2. Proposed Task  
-The goal of this track is to develop a **Controllable Theme Detection** system capable of:  
-- Clustering unlabeled utterances into themes.  
-- Generating concise and natural language labels for each theme.  
-- Adapting theme granularity based on **user preferences** to support different levels of detail.  
-
-To achieve this, participants will be provided with:  
-- A dataset of raw conversation utterances.  
-- User preferences indicating whether certain utterances should belong to the same theme.  
-- A **Theme Label Writing Guideline** to ensure high-quality and consistent labels.   
-
-## 3. Datasets  
-This track builds upon the **NatCS dataset**, which contains customer support dialogues across multiple domains.  
-
-### **Dataset Overview:**  
-- **Training Domain:** Banking  
-- **Development Domain:** Finance  
-- **Testing Domain:** Undisclosed (for zero-shot evaluation)  
-
-Participants will receive:  
-1. **Utterances and dialogue context** – Some utterances may lack explicit details and require surrounding dialogue context for accurate labeling.  
-2. **User preferences for clustering** – A set of utterance pairs with binary labels indicating whether they belong to the same theme.  
-3. **Gold standard theme labels** – Available for training and development but **hidden for the test set** to assess generalization.  
-
-### **Challenges for Participants:**  
-- **Extracting meaningful themes** from natural conversations that may include ambiguity or informal language.  
-- **Leveraging user preferences** to fine-tune theme granularity effectively.  
-- **Handling out-of-domain test cases** with minimal prior knowledge.  
-
-## 4. Evaluation  
-The evaluation consists of two key components:  
-
-### **4.1 Clustering Metrics**  
-- **Normalized Mutual Information (NMI)** – Measures the agreement between predicted and reference clusters while ignoring permutations.  
-- **Accuracy (ACC) Score** – Evaluates how well predicted clusters align with reference clusters using the Hungarian algorithm.  
-
-### **4.2 Label Generation Metrics**  
-- **Cosine Similarity** – Measures the semantic similarity between predicted and reference labels using Sentence-BERT embeddings.  
-- **ROUGE Score** – Analyzes n-gram overlap, useful for comparing short, concise word sequences.  
-- **LLM-Based Scoring** – Assesses label quality based on compliance with the provided **Theme Label Writing Guideline**.  
-- **Human Evaluation (if applicable)** – Top-performing models may be manually reviewed to assess real-world usability.  
-
-## 5. Theme Label Writing Guideline  
-To maintain consistency and quality, participants must follow specific guidelines when generating theme labels.  
-
-### **5.1 Exclusion of Unnecessary Words**  
-- Labels should be **concise (2–5 words long)** and avoid:  
-  - Articles (e.g., *the, a*).  
-  - Auxiliary verbs (e.g., *is, have*).  
-  - Pronouns (e.g., *he, she, it*).  
-  - Demonstratives (e.g., *this, that*).  
-  - Overly specific or context-sensitive words.  
-
-### **5.2 Theme Labels as Verb Phrases**  
-- Labels should be action-based, starting with a verb.  
-- The verb should be in its **citation form** (e.g., *sign up* rather than *signing up*).  
-- Avoid noun phrases and general claims (e.g., *report defective product* instead of *defective product*).  
-
-### **5.3 Balancing Generality and Specificity**  
-- Labels should provide **enough detail to be useful** but not be overly specific.  
-- Example:  
-  - ✅ **Good:** *schedule appointments*  
-  - ❌ **Too General:** *ask about appointments*  
-  - ❌ **Too Specific:** *schedule appointment for elderly parent*
-
---------------------
-
-## Getting started
-Setting up environment and installing packages:
+### Clustering
+다음의 명령어를 실행시키면, cluster_label_map.json 생성
+제대로 클러스터링 됐는지 확인하려면, 이 파일에 들어가기
 ```
-conda create -n dstc12 python=3.11
-conda activate dstc12
-pip install -r requirements.txt --no-cache-dir
-. ./set_paths.sh
+$ sh sccl/run_sccl.sh
 ```
 
-## Getting familiar with the baseline code
-
-Running theme detection
+### Theme Generation
+cluster_label_map.json의 결과를 바탕으로 라벨 생성
 ```
-python scripts/run_theme_detection.py <dataset_file> <preferences_file> <result_dataset_with_predictions_file>
-```
-
-e.g. for Banking:
-
-```
-python scripts/run_theme_detection.py \
-    dstc12-data/AppenBanking/all.jsonl \
-    dstc12-data/AppenBanking/preference_pairs.json \
-    appen_banking_predicted.jsonl
+$ sh run_theme_detection.sh
 ```
 
-Running evaluation:
-
+### Evaluation
 ```
-python scripts/run_evaluation.py <ground_truth_file> <predictions_file>
+$ sh run_evaulation.sh
+```
+or
+```
+DSTC12 Repo와 동일한 명령어 입력
 ```
 
-## Running the LLM
-Some parts of logic used in this baseline use an LLM being run locally:
-
-* theme labeling in `run_theme_detection.py`
-* evaluation of theme labels against the Theme Label Guideline
-
-We use `lmsys/vicuna-13b-v1.5` by default which we tested on 4x Nvidia V100's (16GB each). Please feel free to use a locally run model or an API that works best for you. In case of any questions, please feel free to contact the organizers e.g. via Github issues.
-
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## License
-
-This library is licensed under the CC-BY-NC-4.0 License.
-
+## 주의사항
+- 모든 코드를 실행하기 전에는 dstc12 official repo와 마찬가지로 . ./set_paths.sh 를 실행시키세요.
+- 가급적이면, parser.add_argument의 파라미터를 바꾸는 것이 아니라 sh 파일을 바꾸기를 권장합니다.
+- sh 파일에서 따로 빼놓은 파라미터는 자주 바뀌는 파라미터입니다. 그것만 수정해도 하이퍼파라미터 탐색을 하는데 지장이 없습니다.
+- sh 파일의 파라미터 *n_clusters/dataset_file*은 clustering과 theme generation에서 일치해야 합니다.
+- get_llm()에서 bfloat16이 float16으로 바뀌었으니, 환경에 따라서 바꿔쓰세요.

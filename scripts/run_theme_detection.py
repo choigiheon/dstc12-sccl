@@ -20,19 +20,18 @@ import numpy as np
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--dataset-file', type=str, default="./dstc12-data/AppenBanking/all.jsonl")
-    # parser.add_argument('preferences_file', type=str)
+    parser.add_argument('--dataset-file', type=str, default="./dstc12-data/AppenBanking/all copy.jsonl")
     parser.add_argument('--result-file', type=str, default="./appen_banking_predicted.jsonl")
     parser.add_argument('--n-clusters', type=int, default=14)
     parser.add_argument('--random-state', type=int, default=42)
-    # parser.add_argument('--embedding-model-name', type=str, default='sentence-transformers/all-mpnet-base-v2')
-    parser.add_argument('--llm-name', type=str, default='mistralai/Mistral-7B-Instruct-v0.3')
+    parser.add_argument('--llm-name', type=str, default='')
     parser.add_argument('--cluster-label-map', type=str, default='./cluster_label_map.json')
+    parser.add_argument('--device', type=str, default='auto')
     return parser.parse_args()
 
 
 def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clusters, random_state):
-    llm = get_llm(llm_name)
+    llm = get_llm(llm_name, device=args.device)
     chain = (
         LABEL_CLUSTERS_PROMPT |
         llm |
@@ -46,9 +45,13 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
     for i, utterance in enumerate(iterable=cluster_with_label):
         clustered_utterances[cluster_with_label[utterance]].append(utterance)
     cluster_label_map = {}
-    for i, cluster in tqdm.tqdm(enumerate(clustered_utterances)):
-
-        outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
+    for cluster in tqdm.tqdm(clustered_utterances):
+        
+        try:
+            outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
+        except Exception as e:
+            print("오류가 발생한 프롬프트: {}".format({'utterances': '\n'.join(cluster)}))
+            raise e
         for utterance in cluster:
             cluster_label_map[utterance] = outputs_parsed['theme_label']['theme_label']
     return cluster_label_map
