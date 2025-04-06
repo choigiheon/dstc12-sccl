@@ -1,12 +1,12 @@
-device="cpu"
-dataset_file="./dstc12-data/AppenBanking/all_sampled.jsonl"
+device="mps"
+dataset_file="./dstc12-data/AppenBanking/all.jsonl"
 result_file="./appen_banking_predicted.jsonl"
-model_name="sentence-transformers/all-MiniLM-L6-v2"
-pre_train_epoch=3
-joint_train_epoch=3
-n_clusters=5
-batchsize=100
-lr=5e-7
+model_name="sentence-transformers/all-mpnet-base-v2"
+pre_train_epoch=0
+joint_train_epoch=5
+n_clusters=16
+batchsize=40
+lr=5e-4
 
 
 python3 sccl/cluster.py \
@@ -20,13 +20,13 @@ python3 sccl/cluster.py \
     --lr $lr \
     --pre-train-epoch $pre_train_epoch \
     --joint-train-epoch $joint_train_epoch \
-    --lr-scale 10 \
+    --lr-scale 10000 \
     --augtype simcse \
     --temperature 0.5 \
-    --eta 10 \
+    --eta 100 \
     --n-clusters $n_clusters \
     --alpha 1.0 \
     --n-init 100 \
     --kmeans-interval 1 \
-    --print-freq 5 \
+    --print-freq 1 \
     --eval-interval 1 \

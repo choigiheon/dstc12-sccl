@@ -87,10 +87,10 @@ class SCCLvTrainer(nn.Module):
         if objective == TrainType.joint_train: # SCCL
             output = self.model.get_cluster_prob(embd1)
             target = target_distribution(output).detach()
-            
             cluster_loss = self.cluster_loss((output+1e-08).log(), target)/output.shape[0]
-            loss += self.eta*cluster_loss
+            loss += 0.5 * cluster_loss
             losses["cluster_loss"] = cluster_loss.item()
+            losses["loss"] = loss.item()
 
         loss.backward()
         self.optimizer.step()
@@ -98,28 +98,28 @@ class SCCLvTrainer(nn.Module):
         return losses
     
     
-    def train_step_explicit(self, input_ids, attention_mask):
+    # def train_step_explicit(self, input_ids, attention_mask):
         
-        embd1, embd2, embd3 = self.model(input_ids, attention_mask, task_type="explicit")
+    #     embd1, embd2, embd3 = self.model(input_ids, attention_mask, task_type="explicit")
 
-        # Instance-CL loss
-        feat1, feat2 = self.model.contrast_logits(embd2, embd3)
-        losses = self.contrast_loss(feat1, feat2)
-        loss = self.eta * losses["loss"]
+    #     # Instance-CL loss
+    #     feat1, feat2 = self.model.contrast_logits(embd2, embd3)
+    #     losses = self.contrast_loss(feat1, feat2)
+    #     loss = losses["loss"]
 
-        # Clustering loss
-        if self.args.objective == TrainType.joint_train:
-            output = self.model.get_cluster_prob(embd1)
-            target = target_distribution(output).detach()
+    #     # Clustering loss
+    #     if self.args.objective == TrainType.joint_train:
+    #         output = self.model.get_cluster_prob(embd1)
+    #         target = target_distribution(output).detach()
             
-            cluster_loss = self.cluster_loss((output+1e-08).log(), target)/output.shape[0]
-            loss += self.eta*cluster_loss
-            losses["cluster_loss"] = cluster_loss.item()
+    #         cluster_loss = self.cluster_loss((output+1e-08).log(), target)/output.shape[0]
+    #         loss += self.eta*cluster_loss
+    #         losses["cluster_loss"] = cluster_loss.item()
 
-        loss.backward()
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-        return losses
+    #     loss.backward()
+    #     self.optimizer.step()
+    #     self.optimizer.zero_grad()
+    #     return losses
     
     def train(self, train_type):
         max_epoch = self.args.joint_train_epoch if train_type == TrainType.joint_train else self.args.pre_train_epoch
@@ -144,7 +144,7 @@ class SCCLvTrainer(nn.Module):
                 batch_count += 1
                 
                 # 손실 출력
-                if (self.args.print_freq > 0) and ((batch_count % self.args.print_freq == 0)):
+                if ((batch_count % self.args.print_freq == 0)):
                     print(f"에포크 {epoch+1}/{max_epoch}, 배치 {batch_count}, loss: {losses['loss']}, pos_mean: {losses['pos_mean']}, neg_mean: {losses['neg_mean']}")
                     if train_type == TrainType.joint_train:
                         print(f"cluster_loss: {losses['cluster_loss']}")
@@ -330,3 +330,4 @@ class SCCLvTrainer(nn.Module):
 
     def set_optimizer(self, optimizer):
         self.optimizer = optimizer
+        

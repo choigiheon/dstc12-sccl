@@ -76,7 +76,7 @@ def get_args(argv):
     parser.add_argument('--kmeans-interval', type=int, default=1, help="Progressive KMeans 수행 간격 (epoch 기준)")
     
     # evaluation
-    parser.add_argument('--print-freq', type=float, default=5, help="loss 출력 간격 (iter 기준)")
+    parser.add_argument('--print-freq', type=float, default=1, help="loss 출력 간격 (iter 기준)")
     parser.add_argument('--eval-interval', type=int, default=1, help="eval 결과를 출력할 간격 (epoch 기준)")
     
     args = parser.parse_args(argv)
