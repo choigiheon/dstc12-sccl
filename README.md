@@ -21,7 +21,7 @@ sh 파일은 run_sccl.sh/run_theme_detection.sh/run_evaluation.sh 총 3개 있�
 
 제대로 클러스터링 됐는지 확인하려면, cluster_label_map.json 에 들어가기
 ```
-$ sh sccl/run_sccl.sh
+$ sh run_sccl.sh
 ```
 
 ### Theme Generation
