@@ -17,7 +17,7 @@ class PairConLossPositive(nn.Module):
         super(PairConLossPositive, self).__init__()
         self.temperature = temperature
         self.eps = 1e-08
-        print(f"\n Initializing PairConLoss \n")
+        print(f"\n Initializing PairConLoss with Euclidean Distance \n")
 
     def forward(self, features_1, features_2):
         device = features_1.device
@@ -28,21 +28,33 @@ class PairConLossPositive(nn.Module):
         mask = mask.repeat(2, 2)  # 크기: [2*batch_size, 2*batch_size]
         mask = ~mask  # 크기: [2*batch_size, 2*batch_size]
         
-        pos_sim = torch.sum(features_1*features_2, dim=-1)  # 크기: [batch_size]
-        pos_exp = torch.exp(torch.sum(features_1*features_2, dim=-1) / self.temperature)  # 크기: [batch_size]
-        pos_exp = torch.cat([pos_exp, pos_exp], dim=0)  # 크기: [2*batch_size]
+        # 양성 쌍의 유클리디안 거리 계산
+        pos_dist = torch.sum((features_1 - features_2)**2, dim=-1)  # 크기: [batch_size]
         
-        other_sim = torch.mm(features, features.t().contiguous())  # 크기: [2*batch_size, 2*batch_size]
-        other_exp = torch.exp(torch.mm(features, features.t().contiguous()) / self.temperature)  # 크기: [2*batch_size, 2*batch_size]
-        other_exp = other_exp.masked_select(mask).view(2*batch_size, -1)  # 크기: [2*batch_size, 2*batch_size-1]
+        # 모든 가능한 쌍 간의 유클리디안 거리 계산
+        norm_sq = torch.sum(features**2, dim=1, keepdim=True)  # ||a||^2
+        dist_matrix = norm_sq + norm_sq.t() - 2 * torch.mm(features, features.t())  # ||a-b||^2
         
-        other_sim_mean = torch.mean(other_sim)  # 크기: 스칼라
-        pos_sim_mean = torch.mean(pos_sim)  # 크기: 스칼라
-        Ng = other_exp.sum(dim=-1)  # 크기: [2*batch_size]
-            
-        loss_pos = (- torch.log(pos_exp / (Ng+pos_exp))).mean()  # 크기: 스칼라
+        # 마스크를 사용하여 다른 샘플과의 거리만 선택
+        neg_dist = dist_matrix.masked_select(mask).view(2*batch_size, -1)  # 크기: [2*batch_size, 2*batch_size-2]
         
-        return {"loss":loss_pos, "pos_similarity":pos_sim_mean.detach().cpu().numpy(), "other_similarity":other_sim_mean.detach().cpu().numpy()}
+        # 각 샘플에 대해 가장 가까운 네거티브 샘플 선택 (hard negative mining)
+        closest_neg_dist, _ = neg_dist.min(dim=1)  # 크기: [2*batch_size]
+        
+        # pos_dist와 closest_neg_dist 비교를 위해 pos_dist 복제
+        pos_dist_expanded = torch.cat([pos_dist, pos_dist], dim=0)  # 크기: [2*batch_size]
+        
+        # 트리플렛 손실 계산: max(0, pos_dist - neg_dist)
+        triplet_loss = torch.clamp(pos_dist_expanded - closest_neg_dist, min=0)
+        
+        # 평균 거리 계산 (로깅용)
+        pos_dist_mean = torch.mean(pos_dist)
+        neg_dist_mean = torch.mean(closest_neg_dist)
+        
+        # 최종 손실 계산
+        loss = triplet_loss.mean()
+        
+        return {"loss": loss, "pos_similarity": -pos_dist_mean.detach().cpu().numpy(), "other_similarity": -neg_dist_mean.detach().cpu().numpy()}
             
 
 class PairConLossNegative(nn.Module):
@@ -50,46 +62,58 @@ class PairConLossNegative(nn.Module):
         super(PairConLossNegative, self).__init__()
         self.temperature = temperature
         self.eps = 1e-09
-        self.negative_alpha = negative_alpha
-        print(f"\n Initializing PairConLossNegative \n")
+        self.negative_alpha = negative_alpha  # 부정 쌍에 대한 가중치
+        print(f"\n Initializing PairConLossNegative with Euclidean Distance \n")
     
     def entailment_loss(self, features_1_1, features_1_2, features_2_1):
         device = features_1_1.device
         batch_size = features_1_1.shape[0]
         
         features = torch.cat([features_1_1, features_1_2], dim=0)  # 크기: [2*batch_size, hidden_dim]
-        neg_features = torch.cat([features_1_1, features_2_1], dim=0)  # 크기: [2*batch_size, hidden_dim]
         mask = torch.eye(batch_size, dtype=torch.bool).to(device)  # 크기: [batch_size, batch_size]
         mask = mask.repeat(2, 2)  # 크기: [2*batch_size, 2*batch_size]
         mask = ~mask  # 크기: [2*batch_size, 2*batch_size]
         
-        # 유사도 계산
-        pos_sim = torch.sum(features_1_1*features_1_2, dim=-1)  # 크기: [batch_size]
-        other_sim = torch.mm(features, features.t().contiguous())  # 크기: [2*batch_size, 2*batch_size]
-        neg_sim = torch.mm(neg_features, neg_features.t().contiguous())  # 크기: [2*batch_size, 2*batch_size]
-        my_neg_sim = torch.sum(features_1_1*features_2_1, dim=-1)  # 크기: [batch_size]
+        # 양성 쌍의 유클리디안 거리 계산
+        pos_dist = torch.sum((features_1_1 - features_1_2)**2, dim=-1)  # 크기: [batch_size]
         
-        # 지수 계산
-        pos_exp = torch.exp(pos_sim / self.temperature)  # 크기: [batch_size]
-        pos_exp = torch.cat([pos_exp, pos_exp], dim=0)  # 크기: [2*batch_size]
-        other_exp = torch.exp(other_sim / self.temperature)  # 크기: [2*batch_size, 2*batch_size]
-        other_exp = other_exp.masked_select(mask).view(2*batch_size, -1)  # 크기: [2*batch_size, 2*batch_size-2]
+        # 부정 쌍의 유클리디안 거리 계산
+        neg_dist = torch.sum((features_1_1 - features_2_1)**2, dim=-1)  # 크기: [batch_size]
         
-        neg_exp = torch.exp(neg_sim / self.temperature)  # 크기: [2*batch_size, 2*batch_size]
-        other_neg_exp = neg_exp.masked_select(mask).view(2*batch_size, -1) # 크기: [2*batch_size, 2*batch_size-2]
-        my_neg_exp = neg_exp.masked_select(~mask).view(2*batch_size, 2) # 크기: [2*batch_size, 2]
-        my_neg_exp = my_neg_exp * self.negative_alpha
-        # neg_exp에서 other_neg_exp와 my_neg_exp 합치기
-        neg_exp = torch.cat([other_neg_exp, my_neg_exp], dim=-1)  # 크기: [2*batch_size, 2*batch_size-2+2]
+        # 확실하게 부정 쌍의 거리를 양성 쌍보다 크게 만들기 위한 손실 계산
+        # 부정 쌍의 거리가 양성 쌍의 거리보다 작으면 손실 발생
+        loss_margin = torch.clamp(pos_dist - neg_dist, min=0)
         
-        other_mean = torch.mean(other_sim)  # 크기: 스칼라
-        pos_mean = torch.mean(pos_sim)  # 크기: 스칼라
-        neg_mean = torch.mean(my_neg_sim)  # 크기: 스칼라
-        Ng = other_exp.sum(dim=-1)  # 크기: [2*batch_size]
-        Neg_sum = neg_exp.sum(dim=-1)  # 크기: [2*batch_size]
-            
-        loss_pos = (- torch.log(pos_exp / (Ng+pos_exp+Neg_sum))).mean()  # 크기: 스칼라
-        return {"loss":loss_pos, "pos_similarity":pos_mean.detach().cpu().numpy(), "other_similarity":other_mean.detach().cpu().numpy(), "neg_similarity":neg_mean.detach().cpu().numpy()}
+        # 부정 쌍에 대한 가중치 적용
+        loss_margin = loss_margin * self.negative_alpha
+        
+        # 추가적으로 모든 가능한 쌍 간의 유클리디안 거리 계산
+        norm_sq = torch.sum(features**2, dim=1, keepdim=True)  # ||a||^2
+        dist_matrix = norm_sq + norm_sq.t() - 2 * torch.mm(features, features.t())  # ||a-b||^2
+        
+        # 마스크를 사용하여 다른 샘플과의 거리만 선택
+        other_dist = dist_matrix.masked_select(mask).view(2*batch_size, -1)  # 크기: [2*batch_size, 2*batch_size-2]
+        
+        # 각 샘플에 대해 가장 가까운 네거티브 샘플 선택 (hard negative mining)
+        closest_other_dist, _ = other_dist.min(dim=1)  # 크기: [2*batch_size]
+        
+        # pos_dist와 closest_other_dist 비교를 위해 pos_dist 복제
+        pos_dist_expanded = torch.cat([pos_dist, pos_dist], dim=0)  # 크기: [2*batch_size]
+        
+        # 트리플렛 손실 계산
+        triplet_loss = torch.clamp(pos_dist_expanded - closest_other_dist, min=0)
+        
+        # 최종 손실: 부정 쌍에 대한 마진 손실 + 트리플렛 손실
+        loss = loss_margin.mean() + triplet_loss.mean()
+        
+        # 평균 거리 계산 (로깅용)
+        pos_dist_mean = torch.mean(pos_dist)
+        neg_dist_mean = torch.mean(neg_dist)
+        other_dist_mean = torch.mean(closest_other_dist)
+        
+        return {"loss": loss, "pos_similarity": -pos_dist_mean.detach().cpu().numpy(), 
+                "other_similarity": -other_dist_mean.detach().cpu().numpy(), 
+                "neg_similarity": -neg_dist_mean.detach().cpu().numpy()}
         
     def forward(self, features_1_1, features_1_2, features_2_1, features_2_2):
         loss_entailment1 = self.entailment_loss(features_1_1, features_1_2, features_2_1)
