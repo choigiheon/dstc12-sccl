@@ -2,13 +2,13 @@ device="cuda"
 dataset_file="./dstc12-data/AppenBanking/all.jsonl"
 result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs.json"
-model_name="sentence-transformers/all-mpnet-base-v2"
-pre_train_epoch=0
-inter_train_epoch=0
-joint_train_epoch=5
-n_clusters=29
-batchsize=25
-lr=5e-6
+model_name="BAAI/bge-base-en-v1.5"
+pre_train_epoch=10
+inter_train_epoch=100
+joint_train_epoch=50
+n_clusters=15
+batchsize=40
+lr=5e-7
 
 
 python3 sccl/cluster.py \

@@ -1,4 +1,4 @@
-device="mps"
+device="cuda"
 dataset_file="./dstc12-data/AppenBanking/all_sampled.jsonl"
 result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs_sampled.json"
