@@ -79,6 +79,13 @@ class SCCLModel(nn.Module):
         lds2 = criterion(p2, p0)
         return lds1+lds2
     
+    def contrast_embed(self, input_ids, attention_mask):
+        model_output = self.model.forward(input_ids=input_ids, attention_mask=attention_mask)
+        attention_mask = attention_mask.unsqueeze(-1)
+        mean_output = torch.sum(model_output[0]*attention_mask, dim=1) / torch.sum(attention_mask, dim=1)
+        contrast_output = self.contrast_head(mean_output)
+        return contrast_output
+    
     def contrast_logits(self, embd1, embd2=None):
         feat1 = F.normalize(self.contrast_head(embd1), dim=1)
         if embd2 != None:

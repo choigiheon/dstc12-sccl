@@ -224,9 +224,11 @@ class SCCLvTrainer(nn.Module):
             for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="임베딩 추출"):
                 text = batch['text']
                 feat = self.get_batch_token(text)
-                embeddings = self.model(feat['input_ids'].to(self.args.device), 
-                                       feat['attention_mask'].to(self.args.device), 
-                                       task_type="evaluate")
+                # embeddings = self.model(feat['input_ids'].to(self.args.device), 
+                #                        feat['attention_mask'].to(self.args.device), 
+                #                        task_type="evaluate")
+                embeddings = self.model.contrast_embed(feat['input_ids'].to(self.args.device), 
+                                                     feat['attention_mask'].to(self.args.device))
                 
                 # 임베딩과 해당 발화문 저장
                 all_embeddings.append(embeddings.detach().cpu())
