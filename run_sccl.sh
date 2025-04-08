@@ -3,10 +3,11 @@ dataset_file="./dstc12-data/AppenBanking/all.jsonl"
 result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs.json"
 model_name="sentence-transformers/all-MiniLM-L6-v2"
-pre_train_epoch=10
-joint_train_epoch=10
-n_clusters=16
-batchsize=100
+pre_train_epoch=50
+inter_train_epoch=50
+joint_train_epoch=50
+n_clusters=20
+batchsize=80
 lr=5e-7
 
 
@@ -21,11 +22,12 @@ python3 sccl/cluster.py \
     --lr $lr \
     --lr-scale 10 \
     --pre-train-epoch $pre_train_epoch \
+    --inter-train-epoch $inter_train_epoch \
     --joint-train-epoch $joint_train_epoch \
     --temperature 0.5 \
     --n-clusters $n_clusters \
     --alpha 1.0 \
     --n-init 100 \
-    --print-freq 1 \
-    --eval-interval 1 \
+    --print-freq 5 \
+    --eval-interval 10 \
     --preference-file $preference_file

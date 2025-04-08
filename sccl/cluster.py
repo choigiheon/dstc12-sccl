@@ -36,12 +36,16 @@ def run(args):
     cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init)
     trainer = SCCLvTrainer(model, tokenizer, optimizer, cluster_model, args)
     
-    loader_positive = dataloader.dstc12_loader_with_positive(args)
+    dstc12_loader = dataloader.dstc12_loader(args)
     eval_loader = dataloader.unshuffle_dstc12_loader(args)
-    trainer.train(TrainType.pos_train_pre, loader_positive, eval_loader)
+    trainer.train(TrainType.pre_train, dstc12_loader, eval_loader)
+    
+    
+    loader_positive = dataloader.dstc12_loader_with_positive(args)
+    trainer.train(TrainType.inter_train, loader_positive, eval_loader)
     
     loader_negative = dataloader.dstc12_loader_with_negative(args)
-    trainer.train(TrainType.neg_train_joint, loader_negative, eval_loader)
+    trainer.train(TrainType.joint_train, loader_negative, eval_loader)
     cluster_label_map = trainer.predict(args.result_file)
     trainer.evaluate(args.dataset_file, args.result_file)
     
@@ -62,6 +66,7 @@ def get_args(argv):
     parser.add_argument('--lr', type=float, default=5e-7, help="")
     parser.add_argument('--lr-scale', type=int, default=10)
     parser.add_argument('--pre-train-epoch', type=int, default=3)
+    parser.add_argument('--inter-train-epoch', type=int, default=3)
     parser.add_argument('--joint-train-epoch', type=int, default=3)
     
     # contrastive learning

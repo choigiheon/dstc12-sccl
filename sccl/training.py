@@ -22,8 +22,9 @@ from learner.cluster_utils import target_distribution
 from learner.contrastive_utils import PairConLossPositive, PairConLossNegative
 
 class TrainType:
-    pos_train_pre = "positive_train"
-    neg_train_joint = "negative_train"
+    pre_train = "pre_train"
+    inter_train = "inter_train"
+    joint_train = "joint_train"
 
 class SCCLvTrainer(nn.Module):
     def __init__(self, model, tokenizer, optimizer, cluster_model, args):
@@ -60,37 +61,33 @@ class SCCLvTrainer(nn.Module):
             input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1), feat3['input_ids'].unsqueeze(1)], dim=1)
             attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1), feat3['attention_mask'].unsqueeze(1)], dim=1)
             
-        elif len(batch) == 2:
-            if train_type == TrainType.pos_train_pre:
-                text1, text2 = batch['text_1'], batch['text_2']
-                feat1 = self.get_batch_token(text1)
-                feat2 = self.get_batch_token(text2)
-                input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1)], dim=1)
-                attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1)], dim=1)
-            elif train_type == TrainType.neg_train_joint:
-                text1, text2 = batch['text_1'], batch['text_2']
-                feat1_1 = self.get_batch_token(text1)
-                feat1_2 = self.get_batch_token(text1)
-                feat2_1 = self.get_batch_token(text2)
-                feat2_2 = self.get_batch_token(text2)
-                input_ids = torch.cat([feat1_1['input_ids'].unsqueeze(1), feat1_2['input_ids'].unsqueeze(1), feat2_1['input_ids'].unsqueeze(1), feat2_2['input_ids'].unsqueeze(1)], dim=1)
-                attention_mask = torch.cat([feat1_1['attention_mask'].unsqueeze(1), feat1_2['attention_mask'].unsqueeze(1), feat2_1['attention_mask'].unsqueeze(1), feat2_2['attention_mask'].unsqueeze(1)], dim=1)
-            
-            
-        elif len(batch) == 1: # simcse Augmentation
+        if train_type == TrainType.inter_train:
+            text1, text2 = batch['text_1'], batch['text_2']
+            feat1 = self.get_batch_token(text1)
+            feat2 = self.get_batch_token(text2)
+            input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1)], dim=1)
+            attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1)], dim=1)
+        elif train_type == TrainType.joint_train:
+            text1, text2 = batch['text_1'], batch['text_2']
+            feat1_1 = self.get_batch_token(text1)
+            feat1_2 = self.get_batch_token(text1)
+            feat2_1 = self.get_batch_token(text2)
+            feat2_2 = self.get_batch_token(text2)
+            input_ids = torch.cat([feat1_1['input_ids'].unsqueeze(1), feat1_2['input_ids'].unsqueeze(1), feat2_1['input_ids'].unsqueeze(1), feat2_2['input_ids'].unsqueeze(1)], dim=1)
+            attention_mask = torch.cat([feat1_1['attention_mask'].unsqueeze(1), feat1_2['attention_mask'].unsqueeze(1), feat2_1['attention_mask'].unsqueeze(1), feat2_2['attention_mask'].unsqueeze(1)], dim=1)
+        elif train_type == TrainType.pre_train:
             text = batch['text']
             feat1 = self.get_batch_token(text)
             feat2 = feat1.copy()
-            
             input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1)], dim=1)
             attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1)], dim=1)
             
         return input_ids.to(self.args.device), attention_mask.to(self.args.device)
         
         
-    def train_step_pre(self, input_ids, attention_mask):
+    def train_step_inter(self, input_ids, attention_mask):
         
-        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.pos_train_pre)
+        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.inter_train)
 
         # Instance-CL loss
         feat1, feat2 = self.model.contrast_logits(embd1, embd2)
@@ -102,8 +99,21 @@ class SCCLvTrainer(nn.Module):
         self.optimizer.zero_grad()
         return losses
     
+    def train_step_pre(self, input_ids, attention_mask):
+        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.pre_train)
+        
+        # Instance-CL loss
+        feat1, feat2 = self.model.contrast_logits(embd1, embd2)
+        losses = self.contrast_loss_positive(feat1, feat2)
+        loss = losses["loss"]
+
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return losses
+    
     def train_step_joint(self, input_ids, attention_mask):
-        embd1_1, embd1_2, embd2_1, embd2_2 = self.model(input_ids, attention_mask, task_type=TrainType.neg_train_joint)
+        embd1_1, embd1_2, embd2_1, embd2_2 = self.model(input_ids, attention_mask, task_type=TrainType.joint_train)
 
         # Instance-CL loss
         feat1_1, feat1_2, feat2_1, feat2_2 = self.model.contrast_logits_negative(embd1_1, embd1_2, embd2_1, embd2_2)
@@ -112,8 +122,15 @@ class SCCLvTrainer(nn.Module):
         return losses
     
     def train(self, train_type, train_loader, eval_loader):
-        max_epoch = self.args.joint_train_epoch if train_type == TrainType.neg_train_joint else self.args.pre_train_epoch
-        print("Train Type: ", "pre_train_pos" if train_type == TrainType.pos_train_pre else "joint_train_neg")
+        if train_type == TrainType.pre_train:
+            print("Train Type: ", "pre_train")
+            max_epoch = self.args.pre_train_epoch
+        elif train_type == TrainType.inter_train:
+            print("Train Type: ", "inter_train")
+            max_epoch = self.args.inter_train_epoch
+        elif train_type == TrainType.joint_train:
+            print("Train Type: ", "joint_train")
+            max_epoch = self.args.joint_train_epoch
         print('\n={}/{}=Epochs/Batches'.format(max_epoch, len(train_loader)))
         self.model.train()
         
@@ -121,25 +138,27 @@ class SCCLvTrainer(nn.Module):
         self.predict(self.args.result_file)
         metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
         print(f"Initial metrics: {metrics}")
+        batch_count = 0
         
         for epoch in tqdm(np.arange(max_epoch)):
             
             # 각 에포크마다 전체 데이터셋을 순회
-            batch_count = 0
-            for batch in tqdm(train_loader, desc=f"에포크 {epoch+1}/{max_epoch}"):
+            for batch in train_loader:
                 input_ids, attention_mask = self.prepare_transformer_input(batch, train_type)
                 
-                if train_type == TrainType.pos_train_pre:
+                if train_type == TrainType.inter_train:
                     losses = self.train_step_pre(input_ids, attention_mask)
-                elif train_type == TrainType.neg_train_joint:
+                elif train_type == TrainType.joint_train:
                     losses = self.train_step_joint(input_ids, attention_mask)
+                elif train_type == TrainType.pre_train:
+                    losses = self.train_step_pre(input_ids, attention_mask)
                 
                 batch_count += 1
                 
                 # 손실 출력
                 if ((batch_count % self.args.print_freq == 0)):
                     print(f"에포크 {epoch+1}/{max_epoch}, 배치 {batch_count}\n, loss: {losses['loss']}\n, pos_similarity: {losses['pos_similarity']}\n, other_similarity: {losses['other_similarity']}")
-                    if train_type == TrainType.neg_train_joint:
+                    if train_type == TrainType.joint_train:
                         print(f"neg_similarity: {losses['neg_similarity']}")
             
             if epoch % self.args.eval_interval == 0:

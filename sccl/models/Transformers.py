@@ -12,6 +12,7 @@ from torch.nn import Parameter
 from transformers import BertPreTrainedModel
 from training import TrainType
 # from transformers import AutoModel, AutoTokenizer
+from copy import deepcopy
 
 class SCCLModel(nn.Module):
     def __init__(self, model, tokenizer, alpha=1.0):
@@ -40,7 +41,7 @@ class SCCLModel(nn.Module):
         if task_type == "evaluate":
             return self.get_mean_embeddings(input_ids, attention_mask)
         
-        elif task_type == TrainType.neg_train_joint:
+        elif task_type == TrainType.joint_train:
             input_ids_1, input_ids_2, input_ids_3, input_ids_4 = torch.unbind(input_ids, dim=1)
             attention_mask_1, attention_mask_2, attention_mask_3, attention_mask_4 = torch.unbind(attention_mask, dim=1) 
             
@@ -50,9 +51,17 @@ class SCCLModel(nn.Module):
             mean_output_4 = self.get_mean_embeddings(input_ids_4, attention_mask_4)
             return mean_output_1, mean_output_2, mean_output_3, mean_output_4
         
-        elif task_type == TrainType.pos_train_pre:
+        elif task_type == TrainType.inter_train:
             input_ids_1, input_ids_2 = torch.unbind(input_ids, dim=1)
             attention_mask_1, attention_mask_2 = torch.unbind(attention_mask, dim=1) 
+            
+            mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
+            mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
+            return mean_output_1, mean_output_2
+        
+        elif task_type == TrainType.pre_train:
+            input_ids_1, input_ids_2 = torch.unbind(input_ids, dim=1) # input_ids_1 == input_ids_2
+            attention_mask_1, attention_mask_2 = torch.unbind(attention_mask, dim=1)  # attention_mask_1 == attention_mask_2
             
             mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
             mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
