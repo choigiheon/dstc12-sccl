@@ -6,8 +6,8 @@ model_name="sentence-transformers/all-mpnet-base-v2"
 pre_train_epoch=3
 inter_train_epoch=50
 joint_train_epoch=50
-n_clusters=20
-batchsize=40
+n_clusters=29
+batchsize=30
 lr=5e-6
 
 
@@ -29,5 +29,5 @@ python3 sccl/cluster.py \
     --alpha 1.0 \
     --n-init 100 \
     --print-freq 10 \
-    --eval-interval 3 \
+    --eval-interval 15 \
     --preference-file $preference_file

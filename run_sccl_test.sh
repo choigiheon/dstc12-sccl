@@ -29,7 +29,7 @@ python3 sccl/cluster.py \
     --alpha 1.0 \
     --n-init 100 \
     --print-freq 1 \
-    --eval-interval 1 \
+    --eval-interval 15 \
     --preference-file $preference_file
 
 # 두 번째 실행: 데이터셋과 선호도 파일 변경
@@ -55,7 +55,7 @@ python3 sccl/cluster.py \
     --alpha 1.0 \
     --n-init 100 \
     --print-freq 1 \
-    --eval-interval 1 \
+    --eval-interval 15 \
     --preference-file $preference_file
 
 # # 세 번째 실행: 훈련 에포크 수 변경

@@ -129,7 +129,7 @@ def dstc12_loader_with_negative(args):
             text_2.append(utterance_map[id2])
     
     train_dataset = SimCSEAugSamplesPairs(text_1, text_2)
-    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, drop_last=True)   
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
     return train_loader
 
 def dstc12_loader_with_positive(args):
@@ -154,5 +154,5 @@ def dstc12_loader_with_positive(args):
             text_1.append(utterance_map[id1])
             text_2.append(utterance_map[id2])
     train_dataset = SimCSEAugSamplesPairs(text_1, text_2)
-    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4, drop_last=True)   
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
     return train_loader
