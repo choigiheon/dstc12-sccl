@@ -46,10 +46,11 @@ class PairConLossPositive(nn.Module):
             
 
 class PairConLossNegative(nn.Module):
-    def __init__(self, temperature=0.05):
+    def __init__(self, temperature=0.05, negative_alpha=5.0):
         super(PairConLossNegative, self).__init__()
         self.temperature = temperature
-        self.eps = 1e-08
+        self.eps = 1e-09
+        self.negative_alpha = negative_alpha
         print(f"\n Initializing PairConLossNegative \n")
     
     def entailment_loss(self, features_1_1, features_1_2, features_2_1):
@@ -72,6 +73,7 @@ class PairConLossNegative(nn.Module):
         other_exp = torch.exp(other_sim / self.temperature)  # 크기: [2*batch_size, 2*batch_size]
         other_exp = other_exp.masked_select(mask).view(2*batch_size, -1)  # 크기: [2*batch_size, 2*batch_size-1]
         neg_exp = torch.exp(neg_sim / self.temperature)  # 크기: [batch_size]
+        neg_exp = neg_exp * self.negative_alpha  # 크기: [batch_size]
         neg_exp = torch.cat([neg_exp, neg_exp], dim=0)  # 크기: [2*batch_size]
         
         other_mean = torch.mean(other_sim)  # 크기: 스칼라
