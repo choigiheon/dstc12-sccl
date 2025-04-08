@@ -38,7 +38,7 @@ class PairConLossPositive(nn.Module):
         
         other_sim_mean = torch.mean(other_sim)  # 크기: 스칼라
         pos_sim_mean = torch.mean(pos_sim)  # 크기: 스칼라
-        Ng = other_sim.sum(dim=-1)  # 크기: [2*batch_size]
+        Ng = other_exp.sum(dim=-1)  # 크기: [2*batch_size]
             
         loss_pos = (- torch.log(pos_exp / (Ng+pos_exp))).mean()  # 크기: 스칼라
         

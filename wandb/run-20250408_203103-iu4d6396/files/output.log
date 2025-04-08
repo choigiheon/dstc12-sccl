@@ -1,0 +1,269 @@
+Train Type:  pre_train
+
+=1/41=Epochs/Batches
+---- 41 prediction batches ----
+임베딩 추출: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 41/41 [00:03<00:00, 11.44it/s]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 1632개
+/opt/miniconda3/envs/dstc12/lib/python3.11/site-packages/langchain/llms/__init__.py:549: LangChainDeprecationWarning: Importing LLMs from langchain is deprecated. Importing from langchain will no longer be supported as of langchain==0.2.0. Please import from langchain-community instead:
+
+`from langchain_community.llms import HuggingFacePipeline`.
+
+To install langchain-community run `pip install -U langchain-community`.
+  warnings.warn(
+평가 진행 중...
+acc: 0.557
+nmi: 0.592
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.052
+Initial metrics: {'acc': 0.5569155446756426, 'nmi': 0.592364534744639, 'rouge_1': 0.0, 'rouge_2': 0.0, 'rouge_l': 0.0, 'cosine_similarity': 0.052163523}
+  0%|                                                                                                                                                                                                                 | 0/1 [00:00<?, ?it/s]
+에포크 1/1, 배치 1
+, loss: 3.4920654296875
+, pos_similarity: 0.9276646375656128
+, other_similarity: 0.48109138011932373
+에포크 1/1, 배치 2
+, loss: 3.5048155784606934
+, pos_similarity: 0.9261114001274109
+, other_similarity: 0.48834747076034546
+에포크 1/1, 배치 3
+, loss: 3.4468319416046143
+, pos_similarity: 0.9217392802238464
+, other_similarity: 0.4543894827365875
+에포크 1/1, 배치 4
+, loss: 3.453103542327881
+, pos_similarity: 0.9258472323417664
+, other_similarity: 0.46116411685943604
+에포크 1/1, 배치 5
+, loss: 3.4654364585876465
+, pos_similarity: 0.9324855804443359
+, other_similarity: 0.47404852509498596
+에포크 1/1, 배치 6
+, loss: 3.492048978805542
+, pos_similarity: 0.9280281066894531
+, other_similarity: 0.48330220580101013
+에포크 1/1, 배치 7
+, loss: 3.4232001304626465
+, pos_similarity: 0.9137967824935913
+, other_similarity: 0.4330853819847107
+에포크 1/1, 배치 8
+, loss: 3.3994534015655518
+, pos_similarity: 0.9238130450248718
+, other_similarity: 0.4307970404624939
+에포크 1/1, 배치 9
+, loss: 3.468564510345459
+, pos_similarity: 0.9202429056167603
+, other_similarity: 0.4639325737953186
+에포크 1/1, 배치 10
+, loss: 3.442800998687744
+, pos_similarity: 0.9229696989059448
+, other_similarity: 0.45141708850860596
+에포크 1/1, 배치 11
+, loss: 3.478170871734619
+, pos_similarity: 0.919089138507843
+, other_similarity: 0.46774977445602417
+에포크 1/1, 배치 12
+, loss: 3.429358720779419
+, pos_similarity: 0.9216048121452332
+, other_similarity: 0.4455055892467499
+에포크 1/1, 배치 13
+, loss: 3.394824981689453
+, pos_similarity: 0.9206698536872864
+, other_similarity: 0.4257649779319763
+에포크 1/1, 배치 14
+, loss: 3.453821897506714
+, pos_similarity: 0.9239328503608704
+, other_similarity: 0.4592517614364624
+에포크 1/1, 배치 15
+, loss: 3.3618102073669434
+, pos_similarity: 0.9185559153556824
+, other_similarity: 0.4060375392436981
+에포크 1/1, 배치 16
+, loss: 3.392204999923706
+, pos_similarity: 0.9170425534248352
+, other_similarity: 0.42183661460876465
+에포크 1/1, 배치 17
+, loss: 3.4307608604431152
+, pos_similarity: 0.923388659954071
+, other_similarity: 0.4478900730609894
+에포크 1/1, 배치 18
+, loss: 3.4278361797332764
+, pos_similarity: 0.9220132827758789
+, other_similarity: 0.44480329751968384
+에포크 1/1, 배치 19
+, loss: 3.387921094894409
+, pos_similarity: 0.9169948697090149
+, other_similarity: 0.41819778084754944
+에포크 1/1, 배치 20
+, loss: 3.4102134704589844
+, pos_similarity: 0.9215372204780579
+, other_similarity: 0.4331238567829132
+에포크 1/1, 배치 21
+, loss: 3.326181411743164
+, pos_similarity: 0.9173184633255005
+, other_similarity: 0.38780978322029114
+에포크 1/1, 배치 22
+, loss: 3.328253984451294
+, pos_similarity: 0.9146509170532227
+, other_similarity: 0.38610219955444336
+에포크 1/1, 배치 23
+, loss: 3.3954532146453857
+, pos_similarity: 0.9125974774360657
+, other_similarity: 0.4184047281742096
+에포크 1/1, 배치 24
+, loss: 3.4370522499084473
+, pos_similarity: 0.9268025159835815
+, other_similarity: 0.4545256197452545
+에포크 1/1, 배치 25
+, loss: 3.3232696056365967
+, pos_similarity: 0.9110969305038452
+, other_similarity: 0.37957701086997986
+에포크 1/1, 배치 26
+, loss: 3.3323073387145996
+, pos_similarity: 0.9220699071884155
+, other_similarity: 0.3959629237651825
+에포크 1/1, 배치 27
+, loss: 3.383814573287964
+, pos_similarity: 0.9211351275444031
+, other_similarity: 0.4213220775127411
+에포크 1/1, 배치 28
+, loss: 3.3582663536071777
+, pos_similarity: 0.9132791757583618
+, other_similarity: 0.3995647430419922
+에포크 1/1, 배치 29
+, loss: 3.396247148513794
+, pos_similarity: 0.9206759333610535
+, other_similarity: 0.42717474699020386
+에포크 1/1, 배치 30
+, loss: 3.354586124420166
+, pos_similarity: 0.910595715045929
+, other_similarity: 0.39340972900390625
+에포크 1/1, 배치 31
+, loss: 3.3123977184295654
+, pos_similarity: 0.9213541150093079
+, other_similarity: 0.38284197449684143
+에포크 1/1, 배치 32
+, loss: 3.3329765796661377
+, pos_similarity: 0.9236876368522644
+, other_similarity: 0.3969639241695404
+에포크 1/1, 배치 33
+, loss: 3.3504509925842285
+, pos_similarity: 0.9253628849983215
+, other_similarity: 0.406297892332077
+에포크 1/1, 배치 34
+, loss: 3.355712890625
+, pos_similarity: 0.9177528619766235
+, other_similarity: 0.4016702473163605
+에포크 1/1, 배치 35
+, loss: 3.3274474143981934
+, pos_similarity: 0.923114001750946
+, other_similarity: 0.3938243091106415
+에포크 1/1, 배치 36
+, loss: 3.3474373817443848
+, pos_similarity: 0.9207605123519897
+, other_similarity: 0.40083885192871094
+에포크 1/1, 배치 37
+, loss: 3.3647964000701904
+, pos_similarity: 0.9174306988716125
+, other_similarity: 0.4078739881515503
+에포크 1/1, 배치 38
+, loss: 3.3263866901397705
+, pos_similarity: 0.9152739644050598
+, other_similarity: 0.3854984641075134
+에포크 1/1, 배치 39
+, loss: 3.3123507499694824
+, pos_similarity: 0.9183868169784546
+, other_similarity: 0.37972259521484375
+에포크 1/1, 배치 40
+, loss: 3.3497986793518066
+, pos_similarity: 0.9140588045120239
+, other_similarity: 0.39366888999938965
+에포크 1/1, 배치 41
+, loss: 3.1150312423706055
+, pos_similarity: 0.9138704538345337
+, other_similarity: 0.3894663155078888
+---- 41 prediction batches ----
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:55<00:00, 55.78s/it]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 1632개
+평가 진행 중...
+acc: 0.530
+nmi: 0.581
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.046
+Train Type:  inter_train
+
+=1/4=Epochs/Batches
+---- 41 prediction batches ----
+임베딩 추출: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 41/41 [00:03<00:00, 12.02it/s]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 1632개
+평가 진행 중...
+acc: 0.530
+nmi: 0.581
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.046
+Initial metrics: {'acc': 0.5299877600979193, 'nmi': 0.5805496842696587, 'rouge_1': 0.0, 'rouge_2': 0.0, 'rouge_l': 0.0, 'cosine_similarity': 0.046475347}
+  0%|                                                                                                                                                                                                                 | 0/1 [00:06<?, ?it/s]
+에포크 1/1, 배치 1
+, loss: 4.210359573364258
+, pos_similarity: 0.4565509259700775
+, other_similarity: 0.37143561244010925
+에포크 1/1, 배치 2
+, loss: 4.273698329925537
+, pos_similarity: 0.4259028434753418
+, other_similarity: 0.37317535281181335
+에포크 1/1, 배치 3
+, loss: 4.225119113922119
+, pos_similarity: 0.44179096817970276
+, other_similarity: 0.3647555410861969
+에포크 1/1, 배치 4
+, loss: 4.267279624938965
+, pos_similarity: 0.40961217880249023
+, other_similarity: 0.3535158038139343
+---- 41 prediction batches ----
+Traceback (most recent call last):
+  File "/Users/giheon/Development/dstc12/sccl/cluster.py", line 123, in <module>
+    cluster_label_map = run(args)
+                        ^^^^^^^^^
+  File "/Users/giheon/Development/dstc12/sccl/cluster.py", line 67, in run
+    global_step = trainer.train(TrainType.inter_train, loader_positive, eval_loader, global_step=global_step, current_stage="inter_train")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/giheon/Development/dstc12/sccl/training.py", line 193, in train
+    self.predict(self.args.result_file)
+  File "/Users/giheon/Development/dstc12/sccl/training.py", line 227, in predict
+    all_embeddings, all_utterances = self.get_embeddings(dataloader)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/giheon/Development/dstc12/sccl/training.py", line 274, in get_embeddings
+    for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="임베딩 추출"):
+                         ^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 439, in __iter__
+    return self._get_iterator()
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 387, in _get_iterator
+    return _MultiProcessingDataLoaderIter(self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/site-packages/torch/utils/data/dataloader.py", line 1040, in __init__
+    w.start()
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/multiprocessing/process.py", line 121, in start
+    self._popen = self._Popen(self)
+                  ^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/multiprocessing/context.py", line 224, in _Popen
+    return _default_context.get_context().Process._Popen(process_obj)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/multiprocessing/context.py", line 288, in _Popen
+    return Popen(process_obj)
+           ^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/multiprocessing/popen_spawn_posix.py", line 32, in __init__
+    super().__init__(process_obj)
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/multiprocessing/popen_fork.py", line 19, in __init__
+    self._launch(process_obj)
+  File "/opt/miniconda3/envs/dstc12/lib/python3.11/multiprocessing/popen_spawn_posix.py", line 62, in _launch
+    f.write(fp.getbuffer())
+KeyboardInterrupt

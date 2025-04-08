@@ -1,0 +1,16 @@
+{"time":"2025-04-08T20:21:59.445097+09:00","level":"INFO","msg":"stream: starting","core version":"0.19.9","symlink path":"/Users/giheon/Development/dstc12/wandb/run-20250408_202159-x2u60gn0/logs/debug-core.log"}
+{"time":"2025-04-08T20:21:59.829579+09:00","level":"INFO","msg":"created new stream","id":"x2u60gn0"}
+{"time":"2025-04-08T20:21:59.829643+09:00","level":"INFO","msg":"stream: started","id":"x2u60gn0"}
+{"time":"2025-04-08T20:21:59.82968+09:00","level":"INFO","msg":"handler: started","stream_id":"x2u60gn0"}
+{"time":"2025-04-08T20:21:59.82971+09:00","level":"INFO","msg":"writer: Do: started","stream_id":"x2u60gn0"}
+{"time":"2025-04-08T20:21:59.82999+09:00","level":"INFO","msg":"sender: started","stream_id":"x2u60gn0"}
+{"time":"2025-04-08T20:22:00.127107+09:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-08T20:22:18.128829+09:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-08T20:22:18.128886+09:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-08T20:22:18.881263+09:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-08T20:22:19.141234+09:00","level":"INFO","msg":"handler: operation stats","stats":{"operations":[{"desc":"uploading history steps 2-2, summary, console lines 24-33","runtime_seconds":0.258807416}],"total_operations":1}}
+{"time":"2025-04-08T20:22:19.187584+09:00","level":"INFO","msg":"stream: closing","id":"x2u60gn0"}
+{"time":"2025-04-08T20:22:19.187802+09:00","level":"INFO","msg":"writer: Close: closed","stream_id":"x2u60gn0"}
+{"time":"2025-04-08T20:22:19.187918+09:00","level":"INFO","msg":"handler: closed","stream_id":"x2u60gn0"}
+{"time":"2025-04-08T20:22:19.187973+09:00","level":"INFO","msg":"sender: closed","stream_id":"x2u60gn0"}
+{"time":"2025-04-08T20:22:19.188378+09:00","level":"INFO","msg":"stream: closed","id":"x2u60gn0"}

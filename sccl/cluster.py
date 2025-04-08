@@ -19,6 +19,7 @@ from utils.kmeans import get_kmeans_centers, ProgressiveKMeans
 from utils.optimizer import get_optimizer, get_model
 import numpy as np
 from sklearn.cluster import KMeans
+import wandb
 
 def run(args):
     # dataset loader
@@ -36,18 +37,46 @@ def run(args):
     cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init)
     trainer = SCCLvTrainer(model, tokenizer, optimizer, cluster_model, args)
     
+    # wandb 초기화 - 하나의 run에서 모든 stage 기록
+    config = {
+        "n_clusters": args.n_clusters,
+        "alpha": args.alpha,
+        "n_init": args.n_init,
+        "pre_train_epoch": args.pre_train_epoch,
+        "inter_train_epoch": args.inter_train_epoch,
+        "joint_train_epoch": args.joint_train_epoch,
+        "model_name": args.model_name,
+        "temperature": args.temperature,
+        "seed": args.seed,
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "total_epochs": args.pre_train_epoch + args.inter_train_epoch + args.joint_train_epoch
+    }
+    wandb.init(project="sccl-training", name="sccl_three_stage_training", config=config)
+    
+    # 단계별 훈련 및 전역 step 관리
+    global_step = 0
+    
+    # 첫 번째 단계: 사전 훈련
     dstc12_loader = dataloader.dstc12_loader(args)
     eval_loader = dataloader.unshuffle_dstc12_loader(args)
-    trainer.train(TrainType.pre_train, dstc12_loader, eval_loader)
+    global_step = trainer.train(TrainType.pre_train, dstc12_loader, global_step=global_step)
     
-    
+    # 두 번째 단계: 양성 쌍 기반 훈련
     loader_positive = dataloader.dstc12_loader_with_positive(args)
-    trainer.train(TrainType.inter_train, loader_positive, eval_loader)
+    global_step = trainer.train(TrainType.inter_train, loader_positive, global_step=global_step)
     
+    # 세 번째 단계: 양성/음성 쌍 기반 훈련
     loader_negative = dataloader.dstc12_loader_with_negative(args)
-    trainer.train(TrainType.joint_train, loader_negative, eval_loader)
+    global_step = trainer.train(TrainType.joint_train, loader_negative, global_step=global_step)
     cluster_label_map = trainer.predict(args.result_file)
-    trainer.evaluate(args.dataset_file, args.result_file)
+    metrics = trainer.evaluate(args.dataset_file, args.result_file)
+    
+    # 최종 평가 결과 로깅
+    wandb.log({f"final_{k}": v for k, v in metrics.items()})
+    
+    # wandb 세션 종료
+    wandb.finish()
     
     return cluster_label_map
 

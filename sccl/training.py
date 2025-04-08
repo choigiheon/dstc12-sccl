@@ -14,6 +14,7 @@ from tqdm import tqdm
 from utils.logger import statistics_log
 from utils.metric import Confusion
 from dataloader.dataloader import unshuffle_dstc12_loader
+import wandb
 
 import torch
 import torch.nn as nn
@@ -121,7 +122,7 @@ class SCCLvTrainer(nn.Module):
         loss = losses["loss"]
         return losses
     
-    def train(self, train_type, train_loader, eval_loader):
+    def train(self, train_type, train_loader, global_step=0):
         if train_type == TrainType.pre_train:
             print("Train Type: ", "pre_train")
             max_epoch = self.args.pre_train_epoch
@@ -132,15 +133,21 @@ class SCCLvTrainer(nn.Module):
             print("Train Type: ", "joint_train")
             max_epoch = self.args.joint_train_epoch
         print('\n={}/{}=Epochs/Batches'.format(max_epoch, len(train_loader)))
-        self.model.train()
         
         # For reference
         self.predict(self.args.result_file)
         metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
         print(f"Initial metrics: {metrics}")
-        batch_count = 0
+        
+        # 현재 stage의 초기 메트릭 로깅
+        wandb.log({f"{train_type}_initial_{k}": v for k, v in metrics.items()}, step=global_step)
+        iteration_count = 0
         
         for epoch in tqdm(np.arange(max_epoch)):
+            self.model.train()
+            
+            epoch_loss = 0
+            batch_count = 0
             
             # 각 에포크마다 전체 데이터셋을 순회
             for batch in train_loader:
@@ -153,20 +160,47 @@ class SCCLvTrainer(nn.Module):
                 elif train_type == TrainType.pre_train:
                     losses = self.train_step_pre(input_ids, attention_mask)
                 
+                iteration_count += 1
                 batch_count += 1
+                global_step += 1 # self.args.batch_size
+                epoch_loss += losses['loss'].item()
                 
                 # 손실 출력
-                if ((batch_count % self.args.print_freq == 0)):
-                    print(f"에포크 {epoch+1}/{max_epoch}, 배치 {batch_count}\n, loss: {losses['loss']}\n, pos_similarity: {losses['pos_similarity']}\n, other_similarity: {losses['other_similarity']}")
+                if ((iteration_count % self.args.print_freq == 0)):
+                    print(f"에포크 {epoch+1}/{max_epoch}, 배치 {iteration_count}\n, loss: {losses['loss']}\n, pos_similarity: {losses['pos_similarity']}\n, other_similarity: {losses['other_similarity']}")
+                    # wandb에 로깅 - stage 정보 포함
+                    log_dict = {
+                        f"{train_type}_epoch": epoch + 1,
+                        f"{train_type}_batch": iteration_count,
+                        f"{train_type}_loss": losses['loss'].item(),
+                        f"{train_type}_pos_similarity": losses['pos_similarity'],
+                        f"{train_type}_other_similarity": losses['other_similarity'],
+                        "stage": train_type,
+                        "global_step": global_step
+                    }
+                    
                     if train_type == TrainType.joint_train:
                         print(f"neg_similarity: {losses['neg_similarity']}")
+                        log_dict[f"{train_type}_neg_similarity"] = losses['neg_similarity']
+                        
+                    wandb.log(log_dict, step=global_step)
+                
+                if iteration_count % self.args.eval_interval == 0:
+                    self.predict(self.args.result_file)
+                    metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
+                    # 평가 메트릭 로깅 - stage 정보 포함
+                    wandb.log({f"{train_type}_eval_{k}": v for k, v in metrics.items()}, step=global_step)
+                    self.model.train()
             
-            if epoch % self.args.eval_interval == 0:
-                self.predict(self.args.result_file)
-                self.evaluate(self.args.dataset_file, self.args.result_file)
-                self.model.train()
-
-        return None   
+            # 에포크 종료 시 로깅
+            wandb.log({
+                f"{train_type}_epoch": epoch + 1,
+                f"{train_type}_epoch_loss": epoch_loss / batch_count
+            }, step=global_step)
+            
+                
+        # wandb 세션을 종료하지 않고 global_step 반환
+        return global_step
     
     def predict(self, result_file):
         """
@@ -243,11 +277,11 @@ class SCCLvTrainer(nn.Module):
             for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="임베딩 추출"):
                 text = batch['text']
                 feat = self.get_batch_token(text)
-                # embeddings = self.model(feat['input_ids'].to(self.args.device), 
-                #                        feat['attention_mask'].to(self.args.device), 
-                #                        task_type="evaluate")
-                embeddings = self.model.contrast_embed(feat['input_ids'].to(self.args.device), 
-                                                     feat['attention_mask'].to(self.args.device))
+                embeddings = self.model(feat['input_ids'].to(self.args.device), 
+                                       feat['attention_mask'].to(self.args.device), 
+                                       task_type="evaluate")
+                # embeddings = self.model.contrast_embed(feat['input_ids'].to(self.args.device), 
+                #                                      feat['attention_mask'].to(self.args.device))
                 
                 # 임베딩과 해당 발화문 저장
                 all_embeddings.append(embeddings.detach().cpu())
