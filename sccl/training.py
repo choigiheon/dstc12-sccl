@@ -120,6 +120,10 @@ class SCCLvTrainer(nn.Module):
         feat1_1, feat1_2, feat2_1, feat2_2 = self.model.contrast_logits_negative(embd1_1, embd1_2, embd2_1, embd2_2)
         losses = self.contrast_loss_negative(feat1_1, feat1_2, feat2_1, feat2_2)
         loss = losses["loss"]
+        
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
         return losses
     
     def train(self, train_type, train_loader, global_step=0):
