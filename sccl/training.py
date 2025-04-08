@@ -36,7 +36,7 @@ class SCCLvTrainer(nn.Module):
         self.args = args
         self.cluster_model = cluster_model
         self.contrast_loss_positive = PairConLossPositive(temperature=self.args.temperature)
-        self.contrast_loss_negative = PairConLossNegative(temperature=self.args.temperature)
+        self.contrast_loss_negative = PairConLossNegative(temperature=self.args.temperature, negative_alpha=self.args.negative_alpha)
         
         self.gstep = 0
         print(f"*****Intialize SCCLv, temp:{self.args.temperature}\n")

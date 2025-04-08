@@ -100,6 +100,7 @@ def get_args(argv):
     
     # contrastive learning
     parser.add_argument('--temperature', type=float, default=0.5, help="temperature required by contrastive loss")
+    parser.add_argument('--negative-alpha', type=float, default=5.0, help="negative alpha required by contrastive loss")
     
     # Clustering
     parser.add_argument('--n-clusters', type=int, default=14)
