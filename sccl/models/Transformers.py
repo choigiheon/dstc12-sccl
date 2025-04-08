@@ -27,7 +27,14 @@ class SCCLModel(nn.Module):
             nn.Linear(self.emb_size, self.emb_size),
             nn.ReLU(inplace=True),
             nn.Linear(self.emb_size, 128))
+        # init 
+        self.contrast_head.apply(self.init_weights)
       
+    def init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            nn.init.xavier_uniform_(module.weight)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
     
     def forward(self, input_ids, attention_mask, task_type="evaluate"):
         if task_type == "evaluate":

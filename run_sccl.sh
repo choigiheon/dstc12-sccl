@@ -6,7 +6,7 @@ model_name="sentence-transformers/all-MiniLM-L6-v2"
 pre_train_epoch=10
 joint_train_epoch=10
 n_clusters=16
-batchsize=40
+batchsize=100
 lr=5e-7
 
 
