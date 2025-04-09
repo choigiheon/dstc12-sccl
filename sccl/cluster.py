@@ -20,6 +20,7 @@ from utils.optimizer import get_optimizer, get_model
 import numpy as np
 from sklearn.cluster import KMeans
 import wandb
+from spherecluster import VonMisesFisherMixture
 
 def run(args):
     # dataset loader
@@ -34,7 +35,8 @@ def run(args):
 
     # optimizer 
     optimizer = get_optimizer(model, args)
-    cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++')
+    # cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++')
+    cluster_model = VonMisesFisherMixture(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++', posterior_type='hard')
     trainer = SCCLvTrainer(model, tokenizer, optimizer, cluster_model, args)
     
     # wandb 초기화 - 하나의 run에서 모든 stage 기록
