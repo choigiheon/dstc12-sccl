@@ -9,6 +9,7 @@ import os
 import time
 import numpy as np
 from sklearn import cluster
+from sklearn.preprocessing import normalize
 import json
 from tqdm import tqdm
 from utils.logger import statistics_log
@@ -120,6 +121,10 @@ class SCCLvTrainer(nn.Module):
         feat1_1, feat1_2, feat2_1, feat2_2 = self.model.contrast_logits_negative(embd1_1, embd1_2, embd2_1, embd2_2)
         losses = self.contrast_loss_negative(feat1_1, feat1_2, feat2_1, feat2_2)
         loss = losses["loss"]
+        
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
         return losses
     
     def train(self, train_type, train_loader, global_step=0):
@@ -288,7 +293,8 @@ class SCCLvTrainer(nn.Module):
                 all_utterances.extend(text)
         
         # 모든 임베딩 결합
-        all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
+        all_embeddings = torch.cat(all_embeddings, dim=0)
+        all_embeddings = normalize(all_embeddings, axis=1)
         return all_embeddings, all_utterances
 
     def evaluate(self, dataset_file, result_file):

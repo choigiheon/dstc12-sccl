@@ -14,6 +14,7 @@ from training import TrainType
 # from transformers import AutoModel, AutoTokenizer
 from copy import deepcopy
 
+
 class SCCLModel(nn.Module):
     def __init__(self, model, tokenizer, alpha=1.0):
         super(SCCLModel, self).__init__()
@@ -24,6 +25,7 @@ class SCCLModel(nn.Module):
         self.alpha = alpha
         
         # Instance-CL head
+        # TODO ReLU 대신 Tanh 사용
         self.contrast_head = nn.Sequential(
             nn.Linear(self.emb_size, self.emb_size),
             nn.ReLU(inplace=True),
