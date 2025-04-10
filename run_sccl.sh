@@ -1,13 +1,13 @@
-device="cuda"
+device="mps"
 dataset_file="./dstc12-data/AppenBanking/all.jsonl"
 result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs.json"
 model_name="sentence-transformers/all-mpnet-base-v2"
-pre_train_epoch=0
-inter_train_epoch=0
-joint_train_epoch=5
-n_clusters=29
-batchsize=25
+pre_train_epoch=3
+inter_train_epoch=50
+joint_train_epoch=50
+n_clusters=15
+batchsize=20
 lr=5e-6
 
 
@@ -27,8 +27,8 @@ python3 sccl/cluster.py \
     --temperature 0.5 \
     --n-clusters $n_clusters \
     --alpha 1.0 \
-    --n-init 100 \
+    --n-init 10 \
     --print-freq 10 \
-    --eval-interval 100 \
+    --eval-interval 50 \
     --preference-file $preference_file \
-    --negative-alpha 5.0
+    --negative-alpha 1
