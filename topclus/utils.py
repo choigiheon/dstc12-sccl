@@ -55,13 +55,21 @@ class TopClusUtils(object):
             torch.save(data, loader_file)
         return data
 
-    def cluster_eval(self, label_path, emb_path, seed=42):
-        labels = open(label_path).readlines()
-        labels = np.array([int(label.strip()) for label in labels])
-        n_clusters = len(set(labels))
+    def cluster(self, emb_path, n_clusters, seed=42):
+        """
+        임베딩을 클러스터링합니다.
+        """
         embs = torch.load(emb_path)
         kmeans = KMeans(n_clusters=n_clusters, random_state=seed)
         y_pred = kmeans.fit_predict(embs.numpy())
+        return y_pred
+        
+    def eval(self, y_pred, label_path):
+        """
+        클러스터링 결과를 평가합니다.
+        """
+        labels = open(label_path).readlines()
+        labels = np.array([int(label.strip()) for label in labels])
         nmi = normalized_mutual_info_score(y_pred, labels)
-        print(f"NMI score: {nmi:.4f}")
-        return
+        print(f"NMI 점수: {nmi:.4f}")
+        return nmi

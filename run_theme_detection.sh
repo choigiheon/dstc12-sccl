@@ -1,7 +1,7 @@
 device="mps"
-dataset_file="./dstc12-data/AppenBanking/all_sampled.jsonl"
+dataset_file="./dstc12-data/AppenBanking/all.jsonl"
 llm_name="Qwen/Qwen2.5-1.5B"
-n_clusters=5
+n_clusters=29
 
 python scripts/run_theme_detection.py \
     --dataset-file $dataset_file \

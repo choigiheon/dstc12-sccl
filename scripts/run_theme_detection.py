@@ -46,10 +46,13 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
     for i, utterance in enumerate(iterable=cluster_with_label):
         clustered_utterances[cluster_with_label[utterance]].append(utterance)
     cluster_label_map = {}
-    for cluster in tqdm.tqdm(clustered_utterances):
+    for i, cluster in tqdm.tqdm(enumerate(clustered_utterances)):
         
         try:
-            outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
+            # outputs_parsed = chain.invoke({'utterances': '\n'.join(cluster)})
+            outputs_parsed = {}
+            outputs_parsed['theme_label'] = {}
+            outputs_parsed['theme_label']['theme_label'] = f"theme_{i}"
         except Exception as e:
             print("오류가 발생한 프롬프트: {}".format({'utterances': '\n'.join(cluster)}))
             raise e

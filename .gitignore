@@ -21,3 +21,6 @@ env/
 .DS_Store
 
 wandb/
+*.pt
+*/topclus
+dstc12-data/AppenBanking/topclus/
