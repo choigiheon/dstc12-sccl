@@ -21,6 +21,7 @@ import numpy as np
 from sklearn.cluster import KMeans
 import wandb
 from spherecluster import VonMisesFisherMixture
+from knockknock import discord_sender, email_sender
 
 def run(args):
     # dataset loader
@@ -76,7 +77,6 @@ def run(args):
     
     # 최종 평가 결과 로깅
     wandb.log({f"final_{k}": v for k, v in metrics.items()})
-    
     # wandb 세션 종료
     wandb.finish()
     
@@ -117,14 +117,16 @@ def get_args(argv):
 
     return args
 
+@discord_sender("https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
+def main():
+    args = get_args(sys.argv[1:])
+    cluster_label_map = run(args)
+    cluster_label_map = {k: int(float(v)) for k, v in cluster_label_map.items()}
+    return cluster_label_map
 
 
 if __name__ == '__main__':
-
-    args = get_args(sys.argv[1:])
-
-    cluster_label_map = run(args)
-    cluster_label_map = {k: int(v) for k, v in cluster_label_map.items()}
+    cluster_label_map = main()
 
     # 저장할 파일 경로 생성 (result_file 경로에서 확장자 변경)
     json_output_path = "./cluster_label_map.json"
