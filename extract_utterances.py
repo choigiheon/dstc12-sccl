@@ -5,7 +5,7 @@ import os
 import nltk
 from nltk.corpus import stopwords
 from nltk.tag import pos_tag
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 import string
 from tqdm import tqdm
 
@@ -16,8 +16,8 @@ nltk.download('universal_tagset', quiet=True)
 
 class UtteranceUtils:
     def __init__(self):
-        pretrained_lm = 'bert-base-uncased'
-        self.tokenizer = BertTokenizer.from_pretrained(pretrained_lm, do_lower_case=True)
+        pretrained_lm = 'sentence-transformers/gtr-t5-base'
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_lm, do_lower_case=True)
         vocab = self.tokenizer.get_vocab()
         self.inv_vocab = {k:v for v, k in vocab.items()}
     
@@ -122,7 +122,7 @@ def main():
     parser = argparse.ArgumentParser(description="Extract utterances from all.jsonl and save as texts.txt and text.pt files")
     parser.add_argument('--dataset_file', type=str, default='./dstc12-data/AppenBanking/all.jsonl',
                        help="all.jsonl 데이터셋 파일 경로")
-    parser.add_argument('--output_dir', type=str, default='./topclus_data',
+    parser.add_argument('--output_dir', type=str, default='./dstc12-data/AppenBanking/topclus',
                        help="처리된 파일을 저장할 디렉토리 경로")
     parser.add_argument('--max_len', type=int, default=512,
                        help="토큰화 시 최대 길이")

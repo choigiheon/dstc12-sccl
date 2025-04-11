@@ -1,6 +1,6 @@
 import torch
 from nltk.corpus import stopwords
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 import os
 import string
 from nltk.tag import pos_tag
@@ -12,8 +12,8 @@ from sklearn.metrics.cluster import normalized_mutual_info_score
 class TopClusUtils(object):
 
     def __init__(self):
-        pretrained_lm = 'bert-base-uncased'
-        self.tokenizer = BertTokenizer.from_pretrained(pretrained_lm, do_lower_case=True)
+        pretrained_lm = 'sentence-transformers/gtr-t5-base'
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrained_lm, do_lower_case=True)
         vocab = self.tokenizer.get_vocab()
         self.inv_vocab = {k:v for v, k in vocab.items()}
 

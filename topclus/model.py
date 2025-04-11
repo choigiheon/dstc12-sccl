@@ -1,8 +1,9 @@
-from transformers import BertPreTrainedModel, BertModel
+from transformers import BertPreTrainedModel, AutoModel
 import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
+from transformers import PreTrainedModel, AutoModel, AutoConfig
 
 
 class AutoEncoder(nn.Module):
@@ -41,21 +42,21 @@ class AutoEncoder(nn.Module):
         return self.decoder(z)
 
 
-class TopClusModel(BertPreTrainedModel):
+class TopClusModel(PreTrainedModel):
+    config_class = AutoConfig
 
-    def __init__(self, config, input_dim, hidden_dims, n_clusters, kappa):
+    def __init__(self, config, input_dim, hidden_dims, n_clusters, kappa, model_name='sentence-transformers/gtr-t5-base'):
         super().__init__(config)
-        self.init_weights()
         self.topic_emb = Parameter(torch.Tensor(n_clusters, hidden_dims[-1]))
-        self.bert = BertModel(config, add_pooling_layer=False)
+        self.bert = AutoModel.from_pretrained(model_name)
         self.ae = AutoEncoder(input_dim, hidden_dims)
-        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.dropout = nn.Dropout(config.dropout_rate)
         self.dense = nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = nn.Tanh()
         self.kappa = kappa
         self.v = Parameter(torch.rand(config.hidden_size))
+        self.model_type = model_name.lower()
         torch.nn.init.xavier_normal_(self.topic_emb.data)
-        self.init_weights()
         for param in self.bert.parameters():
             param.requires_grad = False
 
@@ -70,12 +71,23 @@ class TopClusModel(BertPreTrainedModel):
         sim = torch.matmul(z, self.topic_emb.t())
         return sim
 
-    # return initialized latent word embeddings
+    def _get_encoder_outputs(self, input_ids, attention_mask):
+        if 't5' in self.model_type:
+            outputs = self.bert.encoder(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            return outputs.last_hidden_state
+        else:
+            outputs = self.bert(
+                input_ids=input_ids,
+                attention_mask=attention_mask
+            )
+            return outputs[0]
+
     def init_emb(self, input_ids, attention_mask, valid_pos):
         self.bert.eval()
-        bert_outputs = self.bert(input_ids,
-                                 attention_mask=attention_mask)
-        last_hidden_states = bert_outputs[0]
+        last_hidden_states = self._get_encoder_outputs(input_ids, attention_mask)
         attention_mask[:, 0] = 0
         attn_mask = valid_pos != 0
         input_embs = last_hidden_states[attn_mask]
@@ -84,9 +96,7 @@ class TopClusModel(BertPreTrainedModel):
 
     def forward(self, input_ids, attention_mask, valid_pos=None, pretrain=False):
         self.bert.eval()
-        bert_outputs = self.bert(input_ids,
-                                 attention_mask=attention_mask)
-        last_hidden_states = bert_outputs[0]
+        last_hidden_states = self._get_encoder_outputs(input_ids, attention_mask)
 
         if pretrain:
             attn_mask = attention_mask != 0
@@ -120,9 +130,8 @@ class TopClusModel(BertPreTrainedModel):
 
     def inference(self, input_ids, attention_mask):
         self.bert.eval()
-        bert_outputs = self.bert(input_ids,
-                                 attention_mask=attention_mask)
-        last_hidden_states = bert_outputs[0]
+        last_hidden_states = self._get_encoder_outputs(input_ids, attention_mask)
+        
         attention_mask[:, 0] = 0
         trans_states = self.dense(last_hidden_states)
         trans_states = self.activation(trans_states)
@@ -139,3 +148,19 @@ class TopClusModel(BertPreTrainedModel):
         sim = self.topic_sim(z)
         _, z = self.ae(doc_emb)
         return z, valid_word_ids, sim
+
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path, *model_args, **kwargs):
+        input_dim = kwargs.pop('input_dim', 768)
+        hidden_dims = kwargs.pop('hidden_dims', [500, 500, 1000, 100])
+        n_clusters = kwargs.pop('n_clusters', 100)
+        kappa = kwargs.pop('kappa', 10)
+        
+        # __init__에서 사용하지 않는 인자 제거
+        kwargs.pop('output_attentions', None)
+        kwargs.pop('output_hidden_states', None)
+        
+        config = AutoConfig.from_pretrained(pretrained_model_name_or_path)
+        
+        model = cls(config, input_dim, hidden_dims, n_clusters, kappa, model_name=pretrained_model_name_or_path, **kwargs)
+        return model

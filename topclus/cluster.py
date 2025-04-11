@@ -5,7 +5,7 @@ from torch.optim import Adam
 from torch.utils.data import TensorDataset, DataLoader, SequentialSampler, RandomSampler
 from nltk.corpus import stopwords
 import string
-from transformers import BertTokenizer
+from transformers import AutoTokenizer
 from model import TopClusModel
 import os
 from tqdm import tqdm
@@ -15,11 +15,13 @@ from utils import TopClusUtils
 import numpy as np
 import json
 import copy
+from knockknock import discord_sender
+import vec2text
 class TopClusTrainer(object):
 
     def __init__(self, args):
         self.args = args
-        pretrained_lm = 'bert-base-uncased'
+        pretrained_lm = 'sentence-transformers/gtr-t5-base'
         self.n_clusters = args.n_clusters
         self.model = TopClusModel.from_pretrained(pretrained_lm,
                                                   output_attentions=False,
@@ -31,7 +33,8 @@ class TopClusTrainer(object):
         self.utils = TopClusUtils()
         self.device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
         self.latent_dim = eval(args.hidden_dims)[-1]
-        tokenizer = BertTokenizer.from_pretrained(pretrained_lm, do_lower_case=True)
+        tokenizer = AutoTokenizer.from_pretrained(pretrained_lm, do_lower_case=True)
+        self.tokenizer = tokenizer
         self.vocab = tokenizer.get_vocab()
         self.inv_vocab = {k:v for v, k in self.vocab.items()}
         self.filter_vocab()
@@ -63,8 +66,52 @@ class TopClusTrainer(object):
         print(f"Loading encoded texts from {loader_file}")
         data = torch.load(loader_file)
         return data
+    
+    def emb_to_text(self, emb):
+        # ===
+        pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
+        self.model.ae.load_state_dict(torch.load(pretrained_path))  
+        sampler = RandomSampler(self.data)
+        dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
+        
+        self.model = self.model.to(self.device)
+        self.model.eval()
+        
+        batch = next(iter(dataset_loader))
+        input_ids = batch[0].to(self.device)
+        attention_mask = batch[1].to(self.device)
+        valid_pos = batch[2].to(self.device)
+        
+        max_len = attention_mask.sum(-1).max().item()
+        input_ids, attention_mask, valid_pos = tuple(t[:, :max_len] for t in (input_ids, attention_mask, valid_pos))
+        avg_doc_emb, input_embs, output_embs, rec_doc_emb, p_word = self.model(input_ids, attention_mask, valid_pos)
+        
+        original_text = self.tokenizer.batch_decode(input_ids[:10], skip_special_tokens=True)
+        emb1 = avg_doc_emb[:10]
+        emb2 = rec_doc_emb[:10]
+        
+        corrector = vec2text.load_pretrained_corrector("gtr-base")
+        
+        output1 = vec2text.invert_embeddings(
+            embeddings=emb1.to("mps"),
+            corrector=corrector,
+            num_steps=50,
+        )
+        output2 = vec2text.invert_embeddings(
+            embeddings=emb2.to("mps"),
+            corrector=corrector,
+            num_steps=50,
+        )
+        
+        for a, b, c in zip(output1, output2, original_text):
+            print(a)
+            print(b)
+            print("Label: ", c)
+            print("--------------------------------")
+        # ===
 
     # pretrain autoencoder with reconstruction loss
+    @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def pretrain(self, pretrain_epoch=20):
         pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
         if os.path.exists(pretrained_path):
@@ -95,6 +142,7 @@ class TopClusTrainer(object):
             print(f"Pretrained model saved to {pretrained_path}")
 
     # initialize topic embeddings via K-Means clustering in the spherical latent space
+    @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def cluster_init(self):
         latent_emb_path = os.path.join(self.data_dir,"init_latent_emb.pt")
         model = self.model.to(self.device)
@@ -130,6 +178,7 @@ class TopClusTrainer(object):
         model.topic_emb.data = torch.tensor(kmeans.cluster_centers_).to(self.device)
 
     # obtain topic discovery results and latent document embeddings for clustering
+    @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def inference(self, topk=10, suffix=""):
         sampler = SequentialSampler(self.data)
         dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
@@ -179,6 +228,7 @@ class TopClusTrainer(object):
         targets = (targets.t() / targets.sum(dim=1)).t()
         return targets
 
+    @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     # train model with three objectives
     def clustering(self, epochs=20):
         self.pretrain(pretrain_epoch=self.args.pretrain_epoch)
@@ -258,8 +308,8 @@ class TopClusTrainer(object):
         
         return cluster_result
     
-if __name__ == '__main__':
 
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--dataset', default='dstc12-data/AppenBanking/')
@@ -270,7 +320,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_clusters', default=29, type=int, help='number of topics')
     parser.add_argument('--k', default=10, type=int, help='number of top words to display per topic')
     parser.add_argument('--input_dim', default=768, type=int, help='embedding dimention of pretrained language model')
-    parser.add_argument('--pretrain_epoch', default=1, type=int, help='number of epochs for pretraining autoencoder')
+    parser.add_argument('--pretrain_epoch', default=20 , type=int, help='number of epochs for pretraining autoencoder')
     parser.add_argument('--kappa', default=10, type=float, help='concentration parameter kappa')
     parser.add_argument('--hidden_dims', default='[500, 500, 1000, 100]', type=str)
     parser.add_argument('--do_cluster', action='store_true')
