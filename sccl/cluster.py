@@ -30,14 +30,13 @@ def run(args):
     # model
     model, tokenizer = get_model(args)
     
-    model = SCCLModel(model, tokenizer, alpha=args.alpha) 
+    model = SCCLModel(model, tokenizer, alpha=args.alpha, cluster_head_dim=(args.n_clusters, args.cluster_head_dim)) 
     model = model.to(args.device)
     model.train()
 
     # optimizer 
     optimizer = get_optimizer(model, args)
-    # cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++')
-    cluster_model = VonMisesFisherMixture(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++', posterior_type='hard')
+    cluster_model = ProgressiveKMeans(n_clusters=args.n_clusters, max_length=args.max_length, args=args)
     trainer = SCCLvTrainer(model, tokenizer, optimizer, cluster_model, args)
     
     # wandb 초기화 - 하나의 run에서 모든 stage 기록
@@ -53,7 +52,8 @@ def run(args):
         "seed": args.seed,
         "batch_size": args.batch_size,
         "learning_rate": args.lr,
-        "total_epochs": args.pre_train_epoch + args.inter_train_epoch + args.joint_train_epoch
+        "total_epochs": args.pre_train_epoch + args.inter_train_epoch + args.joint_train_epoch,
+        "update_interval": args.update_interval,
     }
     wandb.init(project="sccl-training", name="sccl_three_stage_training", config=config)
     
@@ -61,9 +61,8 @@ def run(args):
     global_step = 0
     
     # 첫 번째 단계: 사전 훈련
-    dstc12_loader = dataloader.dstc12_loader(args)
-    eval_loader = dataloader.unshuffle_dstc12_loader(args)
-    global_step = trainer.train(TrainType.pre_train, dstc12_loader, global_step=global_step)
+    dstc12_all_loader = dataloader.dstc12_all_loader(args)
+    global_step = trainer.train(TrainType.pre_train, dstc12_all_loader, global_step=global_step)
     
     # 두 번째 단계: 양성 쌍 기반 훈련
     loader_positive = dataloader.dstc12_loader_with_positive(args)
@@ -108,6 +107,8 @@ def get_args(argv):
     parser.add_argument('--n-clusters', type=int, default=14)
     parser.add_argument('--alpha', type=float, default=1.0)
     parser.add_argument('--n-init', type=int, default=100, help="Kmeans++의 초기화 횟수")
+    parser.add_argument('--update-interval', type=int, default=1, help="update interval")
+    parser.add_argument('--cluster-head-dim', type=int, default=768, help="cluster head dimension")
     
     # evaluation
     parser.add_argument('--print-freq', type=float, default=1, help="loss 출력 간격 (iter 기준)")

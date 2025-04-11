@@ -106,6 +106,18 @@ def dstc12_loader(args):
     train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
     return train_loader
 
+def dstc12_all_loader(args):
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+    utterances = set([])
+    for dialogue in dataset:
+        for turn in dialogue['turns']:
+            utterances.add(turn['utterance'])
+    
+    train_dataset = SimCSEAugSamples(list(utterances))
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
+    return train_loader
+
 def dstc12_loader_with_negative(args):
     with open(args.preference_file) as f:
         dataset = json.load(f)

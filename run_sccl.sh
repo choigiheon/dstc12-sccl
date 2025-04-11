@@ -4,11 +4,11 @@ result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs.json"
 model_name="sentence-transformers/all-mpnet-base-v2"
 pre_train_epoch=3
-inter_train_epoch=50
-joint_train_epoch=50
-n_clusters=15
+inter_train_epoch=100
+joint_train_epoch=100
+n_clusters=14
 batchsize=20
-lr=5e-6
+lr=2e-7
 
 
 python3 sccl/cluster.py \
@@ -20,7 +20,7 @@ python3 sccl/cluster.py \
     --max-length 100 \
     --batch-size $batchsize \
     --lr $lr \
-    --lr-scale 10 \
+    --lr-scale 100 \
     --pre-train-epoch $pre_train_epoch \
     --inter-train-epoch $inter_train_epoch \
     --joint-train-epoch $joint_train_epoch \
@@ -29,6 +29,7 @@ python3 sccl/cluster.py \
     --alpha 1.0 \
     --n-init 10 \
     --print-freq 10 \
-    --eval-interval 50 \
+    --eval-interval 100 \
     --preference-file $preference_file \
-    --negative-alpha 1
+    --negative-alpha 1 \
+    --update-interval 1

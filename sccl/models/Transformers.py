@@ -16,7 +16,7 @@ from copy import deepcopy
 
 
 class SCCLModel(nn.Module):
-    def __init__(self, model, tokenizer, alpha=1.0):
+    def __init__(self, model, tokenizer, alpha=1.0, cluster_head_dim=(1, 1)):
         super(SCCLModel, self).__init__()
         
         self.tokenizer = tokenizer
@@ -32,6 +32,10 @@ class SCCLModel(nn.Module):
             nn.Linear(self.emb_size, 128))
         # init 
         self.contrast_head.apply(self.init_weights)
+        
+        initial_cluster_centers = torch.tensor(
+            torch.zeros(cluster_head_dim), dtype=torch.float, requires_grad=True)
+        self.cluster_head = Parameter(initial_cluster_centers)
       
     def init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -120,3 +124,13 @@ class SCCLModel(nn.Module):
         emb2_2 = F.normalize(self.contrast_head(embd2_2), dim=1)
         
         return emb1_1, emb1_2, emb2_1, emb2_2
+    
+    def set_cluster_head(self, cluster_head):
+        self.cluster_head.data.copy_(cluster_head)
+        
+    def get_cluster_prob(self, embeddings):
+        norm_squared = torch.sum((embeddings.unsqueeze(1) - self.cluster_head) ** 2, 2)
+        numerator = 1.0 / (1.0 + (norm_squared / self.alpha))
+        power = float(self.alpha + 1) / 2
+        numerator = numerator ** power
+        return numerator / torch.sum(numerator, dim=1, keepdim=True)

@@ -33,7 +33,7 @@ def get_batch_token(tokenizer, text, max_length):
 def get_kmeans_centers(model, tokenizer, train_loader, num_classes, max_length, args):
     
     print("임베딩 추출 중...")
-    for i, batch in tqdm(enumerate(train_loader), total=len(train_loader), desc="임베딩 추출"):
+    for i, batch in enumerate(train_loader):
         text = batch['text']
         tokenized_features = get_batch_token(tokenizer, text, max_length)
         corpus_embeddings = get_mean_embeddings(model, **tokenized_features)
@@ -63,7 +63,13 @@ def get_kmeans_centers(model, tokenizer, train_loader, num_classes, max_length, 
     
     return clustering_model.cluster_centers_
 
-
+def convert_np(tensor):
+    if isinstance(tensor, torch.Tensor) and tensor.device != torch.device('cpu'):
+        return tensor.cpu().detach().numpy()
+    elif isinstance(tensor, torch.Tensor):
+        return tensor.detach().numpy()
+    else:
+        return tensor
 
 """
 Progressive KMeans
@@ -77,24 +83,21 @@ class ProgressiveKMeans:
         self.high_score_centers = None
         self.labels = None
         self.n_init = args.n_init
+        
+    def init(self, all_embeddings):
+        kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
+        all_embeddings_np = convert_np(all_embeddings)
+        kmeans.fit(all_embeddings_np)
+        self.cluster_centers = kmeans.cluster_centers_
+        self.labels = kmeans.labels_
+        
+        self.high_score_centers = self.calculate_high_score_centers(all_embeddings_np, self.cluster_centers, self.labels)
     
     def update(self, all_embeddings):
-        if self.high_score_centers is not None:
-            # GPU 텐서인 high_score_centers를 CPU로 이동시킨 후 numpy로 변환
-            if isinstance(self.high_score_centers, torch.Tensor):
-                init_centers = self.high_score_centers.cpu().numpy()
-            else:
-                init_centers = self.high_score_centers
-            kmeans = KMeans(n_clusters=self.n_clusters, init=init_centers, random_state=self.args.seed)
-        else:
-            kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
-            
-        # GPU 텐서를 CPU로 이동한 후 numpy로 변환
-        if isinstance(all_embeddings, torch.Tensor):
-            all_embeddings_np = all_embeddings.cpu().numpy()
-        else:
-            all_embeddings_np = all_embeddings
-            
+        assert self.high_score_centers is not None
+        high_score_centers_np = convert_np(self.high_score_centers)
+        kmeans = KMeans(n_clusters=self.n_clusters, init=high_score_centers_np, random_state=self.args.seed)
+        all_embeddings_np = convert_np(all_embeddings)
         kmeans.fit(all_embeddings_np)
         self.cluster_centers = kmeans.cluster_centers_
         self.labels = kmeans.labels_
@@ -102,22 +105,12 @@ class ProgressiveKMeans:
         self.high_score_centers = self.calculate_high_score_centers(all_embeddings_np, self.cluster_centers, self.labels)
         
     def predict(self, all_embeddings):
-        if self.high_score_centers is not None:
-            # GPU 텐서인 high_score_centers를 CPU로 이동시킨 후 numpy로 변환
-            if isinstance(self.high_score_centers, torch.Tensor):
-                init_centers = self.high_score_centers.cpu().numpy()
-            else:
-                init_centers = self.high_score_centers
-            kmeans = KMeans(n_clusters=self.n_clusters, init=init_centers, random_state=self.args.seed)
+        if self.high_score_centers is None:
+            kmeans = KMeans(n_clusters=self.n_clusters, init="k-means++", n_init=self.n_init, random_state=self.args.seed)
         else:
-            kmeans = KMeans(n_clusters=self.n_clusters, n_init=self.n_init, init="k-means++", random_state=self.args.seed)
-        
-        # GPU 텐서를 CPU로 이동한 후 numpy로 변환
-        if torch.is_tensor(all_embeddings):
-            all_embeddings_np = all_embeddings.cpu().numpy()
-        else:
-            all_embeddings_np = all_embeddings
-            
+            high_score_centers_np = convert_np(self.high_score_centers)
+            kmeans = KMeans(n_clusters=self.n_clusters, init=high_score_centers_np, random_state=self.args.seed)
+        all_embeddings_np = convert_np(all_embeddings)
         kmeans.fit(all_embeddings_np)
         cluster_centers = kmeans.cluster_centers_
         labels = kmeans.labels_
@@ -126,11 +119,7 @@ class ProgressiveKMeans:
         return labels, high_score_centers
     
     def calculate_high_score_centers(self, all_embeddings, cluster_centers, labels):
-        # GPU 텐서를 CPU로 이동한 후 numpy로 변환
-        if torch.is_tensor(all_embeddings) and all_embeddings.is_cuda:
-            all_embeddings_np = all_embeddings.cpu().numpy()
-        else:
-            all_embeddings_np = all_embeddings
+        all_embeddings_np = convert_np(all_embeddings)
             
         # 실루엣 점수 계산
         silhouette_vals = silhouette_samples(all_embeddings_np, labels)

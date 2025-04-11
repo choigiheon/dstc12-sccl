@@ -4,8 +4,8 @@ result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs_sampled.json"
 model_name="sentence-transformers/all-MiniLM-L6-v2"
 pre_train_epoch=1
-inter_train_epoch=1
-joint_train_epoch=1
+inter_train_epoch=3
+joint_train_epoch=3
 n_clusters=16
 batchsize=40
 lr=5e-7
@@ -28,13 +28,15 @@ python3 sccl/cluster.py \
     --n-clusters $n_clusters \
     --alpha 1.0 \
     --n-init 100 \
-    --print-freq 1 \
-    --eval-interval 15 \
-    --preference-file $preference_file
+    --print-freq 5 \
+    --eval-interval 100 \
+    --preference-file $preference_file \
+    --cluster-head-dim 384 \
+    --update-interval 1
 
 # 두 번째 실행: 데이터셋과 선호도 파일 변경
-dataset_file="./dstc12-data/AppenBanking/all_sampled.jsonl"
-preference_file="./dstc12-data/AppenBanking/preference_pairs_sampled.json"
+dataset_file="./dstc12-data/AppenBanking/all.jsonl"
+preference_file="./dstc12-data/AppenBanking/preference_pairs.json"
 # pre_train_epoch=1, joint_train_epoch=1 유지
 
 python3 sccl/cluster.py \
@@ -54,10 +56,10 @@ python3 sccl/cluster.py \
     --n-clusters $n_clusters \
     --alpha 1.0 \
     --n-init 100 \
-    --print-freq 1 \
-    --eval-interval 15 \
-    --preference-file $preference_file
-
+    --print-freq 5 \
+    --eval-interval 100 \
+    --preference-file $preference_file \
+    --cluster-head-dim 384
 # # 세 번째 실행: 훈련 에포크 수 변경
 # pre_train_epoch=3
 # joint_train_epoch=3

@@ -143,10 +143,8 @@ class TopClusTrainer(object):
                     loss.backward()
                     optimizer.step()
                 print(f"epoch {epoch}: loss = {total_loss / (batch_idx+1):.4f}")
-                
-                if (epoch+1) % 5 == 0:
-                    torch.save(model.ae.state_dict(), pretrained_path)
-                    print(f"Pretrained model saved to {pretrained_path}")
+            torch.save(model.ae.state_dict(), pretrained_path)
+            print(f"Pretrained model saved to {pretrained_path}")
 
     # initialize topic embeddings via K-Means clustering in the spherical latent space
     def cluster_init(self):
@@ -414,8 +412,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset', default='dstc12-data/AppenBanking/')
     parser.add_argument('--dataset_file', default='dstc12-data/AppenBanking/all.jsonl')
-    parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--n_clusters', default=15, type=int, help='number of topics')
     parser.add_argument('--k', default=10, type=int, help='number of top words to display per topic')

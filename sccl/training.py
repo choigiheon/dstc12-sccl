@@ -38,6 +38,7 @@ class SCCLvTrainer(nn.Module):
         self.cluster_model = cluster_model
         self.contrast_loss_positive = PairConLossPositive(temperature=self.args.temperature)
         self.contrast_loss_negative = PairConLossNegative(temperature=self.args.temperature, negative_alpha=self.args.negative_alpha)
+        self.cluster_loss = nn.KLDivLoss(size_average=False)
         
         self.gstep = 0
         print(f"*****Intialize SCCLv, temp:{self.args.temperature}\n")
@@ -86,20 +87,6 @@ class SCCLvTrainer(nn.Module):
             
         return input_ids.to(self.args.device), attention_mask.to(self.args.device)
         
-        
-    def train_step_inter(self, input_ids, attention_mask):
-        
-        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.inter_train)
-
-        # Instance-CL loss
-        feat1, feat2 = self.model.contrast_logits(embd1, embd2)
-        losses = self.contrast_loss_positive(feat1, feat2)
-        loss = losses["loss"]
-
-        loss.backward()
-        self.optimizer.step()
-        self.optimizer.zero_grad()
-        return losses
     
     def train_step_pre(self, input_ids, attention_mask):
         embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.pre_train)
@@ -114,6 +101,28 @@ class SCCLvTrainer(nn.Module):
         self.optimizer.zero_grad()
         return losses
     
+    def train_step_inter(self, input_ids, attention_mask):
+        
+        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.inter_train)
+
+        # Instance-CL loss
+        feat1, feat2 = self.model.contrast_logits(embd1, embd2)
+        losses = self.contrast_loss_positive(feat1, feat2)
+        loss = losses["loss"]
+        
+        # Cluster loss
+        output = self.model.get_cluster_prob(embd1)
+        target = target_distribution(output).detach()
+        
+        cluster_loss = self.cluster_loss((output+1e-08).log(), target)/output.shape[0]
+        loss += 10*cluster_loss
+        losses["cluster_loss"] = cluster_loss.item()
+
+        loss.backward()
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        return losses
+    
     def train_step_joint(self, input_ids, attention_mask):
         embd1_1, embd1_2, embd2_1, embd2_2 = self.model(input_ids, attention_mask, task_type=TrainType.joint_train)
 
@@ -121,6 +130,22 @@ class SCCLvTrainer(nn.Module):
         feat1_1, feat1_2, feat2_1, feat2_2 = self.model.contrast_logits_negative(embd1_1, embd1_2, embd2_1, embd2_2)
         losses = self.contrast_loss_negative(feat1_1, feat1_2, feat2_1, feat2_2)
         loss = losses["loss"]
+        
+        # Cluster loss
+        output1 = self.model.get_cluster_prob(embd1_1)
+        target1 = target_distribution(output1).detach()
+        
+        cluster_loss1 = self.cluster_loss((output1+1e-08).log(), target1)/output1.shape[0]
+        
+        output2 = self.model.get_cluster_prob(embd1_2)
+        target2 = target_distribution(output2).detach()
+        
+        cluster_loss2 = self.cluster_loss((output2+1e-08).log(), target2)/output2.shape[0]
+        
+        cluster_loss = (cluster_loss1 + cluster_loss2) / 2
+        
+        loss += 10*cluster_loss
+        losses["cluster_loss"] = cluster_loss.item()
         
         loss.backward()
         self.optimizer.step()
@@ -154,16 +179,19 @@ class SCCLvTrainer(nn.Module):
             epoch_loss = 0
             batch_count = 0
             
+            if train_type == TrainType.inter_train:
+                self.model.set_cluster_head(self.cluster_model.get_hsc())
+            
             # 각 에포크마다 전체 데이터셋을 순회
             for batch in train_loader:
                 input_ids, attention_mask = self.prepare_transformer_input(batch, train_type)
                 
-                if train_type == TrainType.inter_train:
+                if train_type == TrainType.pre_train:
                     losses = self.train_step_pre(input_ids, attention_mask)
+                elif train_type == TrainType.inter_train:
+                    losses = self.train_step_inter(input_ids, attention_mask)
                 elif train_type == TrainType.joint_train:
                     losses = self.train_step_joint(input_ids, attention_mask)
-                elif train_type == TrainType.pre_train:
-                    losses = self.train_step_pre(input_ids, attention_mask)
                 
                 iteration_count += 1
                 batch_count += 1
@@ -175,14 +203,18 @@ class SCCLvTrainer(nn.Module):
                     print(f"에포크 {epoch+1}/{max_epoch}, 배치 {iteration_count}\n, loss: {losses['loss']}\n, pos_similarity: {losses['pos_similarity']}\n, other_similarity: {losses['other_similarity']}")
                     # wandb에 로깅 - stage 정보 포함
                     log_dict = {
-                        f"{train_type}_epoch": epoch + 1,
-                        f"{train_type}_batch": iteration_count,
-                        f"{train_type}_loss": losses['loss'].item(),
-                        f"{train_type}_pos_similarity": losses['pos_similarity'],
-                        f"{train_type}_other_similarity": losses['other_similarity'],
+                        f"epoch": epoch + 1,
+                        f"batch": iteration_count,
+                        f"loss": losses['loss'].item(),
+                        f"pos_similarity": losses['pos_similarity'],
+                        f"other_similarity": losses['other_similarity'],
                         "stage": train_type,
                         "global_step": global_step
                     }
+                    
+                    if train_type == TrainType.inter_train or train_type == TrainType.joint_train:
+                        print(f"cluster_loss: {losses['cluster_loss']}")
+                        log_dict[f"{train_type}_cluster_loss"] = losses['cluster_loss']
                     
                     if train_type == TrainType.joint_train:
                         print(f"neg_similarity: {losses['neg_similarity']}")
@@ -196,6 +228,15 @@ class SCCLvTrainer(nn.Module):
                     # 평가 메트릭 로깅 - stage 정보 포함
                     wandb.log({f"{train_type}_eval_{k}": v for k, v in metrics.items()}, step=global_step)
                     self.model.train()
+
+            dataloader = unshuffle_dstc12_loader(self.args)
+            if train_type == TrainType.pre_train and epoch == 0:
+                all_embeddings, all_utterances = self.get_embeddings(train_loader)
+                self.cluster_model.init(all_embeddings)
+            
+            if (epoch % self.args.update_interval == 0) and epoch != 0:
+                all_embeddings, all_utterances = self.get_embeddings(dataloader)
+                self.cluster_model.update(all_embeddings)
             
             # 에포크 종료 시 로깅
             wandb.log({
@@ -233,8 +274,7 @@ class SCCLvTrainer(nn.Module):
         
         # K-means 클러스터링 수행
         all_embeddings, all_utterances = self.get_embeddings(dataloader)
-        self.cluster_model.fit(all_embeddings)
-        cluster_labels = self.cluster_model.predict(all_embeddings)
+        cluster_labels, high_score_centers = self.cluster_model.predict(all_embeddings)
         
         print(f"클러스터링 완료: {self.args.n_clusters}개 클러스터")
         
@@ -294,7 +334,6 @@ class SCCLvTrainer(nn.Module):
         
         # 모든 임베딩 결합
         all_embeddings = torch.cat(all_embeddings, dim=0)
-        all_embeddings = normalize(all_embeddings, axis=1)
         return all_embeddings, all_utterances
 
     def evaluate(self, dataset_file, result_file):

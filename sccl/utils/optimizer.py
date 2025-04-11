@@ -25,6 +25,7 @@ def get_optimizer(model, args):
     optimizer = torch.optim.Adam([
         {'params':model.model.parameters()}, 
         {'params':model.contrast_head.parameters(), 'lr': args.lr*args.lr_scale},
+        {'params':model.cluster_head, 'lr': args.lr*args.lr_scale},
     ], lr=args.lr)
     
     print(optimizer)
