@@ -105,20 +105,18 @@ class TopClusModel(PreTrainedModel):
             return input_embs, output_embs
         else:
             assert valid_pos is not None, "valid_pos should not be None in clustering mode!"
-        attention_mask[:, 0] = 0
         sum_emb = (last_hidden_states * attention_mask.unsqueeze(-1)).sum(dim=1)
         valid_num = attention_mask.sum(dim=-1, keepdim=True)
         avg_doc_emb = sum_emb / valid_num
         trans_states = self.dense(last_hidden_states)
         trans_states = self.activation(trans_states)
         attn_logits = torch.matmul(trans_states, self.v)
-        attention_mask[:, 0] = 0
         attn_mask = attention_mask == 0
         attn_logits.masked_fill_(attn_mask, float('-inf'))
         attn_weights = F.softmax(attn_logits, dim=-1)
         doc_emb = (last_hidden_states * attn_weights.unsqueeze(-1)).sum(dim=1)
         
-        attn_mask = valid_pos != 0
+        attn_mask = attention_mask != 0 # valid_pos != 0 # valid_pos를 사용하지 않기로 결정
         input_embs = last_hidden_states[attn_mask]
         output_embs, z_word = self.ae(input_embs)
         _, z_doc = self.ae(doc_emb)
@@ -126,7 +124,7 @@ class TopClusModel(PreTrainedModel):
         p_word = self.cluster_assign(z_word)
         dec_topic = self.ae.decode(self.topic_emb)
         rec_doc_emb = torch.matmul(p_doc, dec_topic)
-        return avg_doc_emb, input_embs, output_embs, rec_doc_emb, p_word
+        return avg_doc_emb, input_embs, output_embs, rec_doc_emb, p_word, p_doc
 
     def inference(self, input_ids, attention_mask):
         self.bert.eval()

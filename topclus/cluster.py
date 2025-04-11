@@ -17,6 +17,8 @@ import json
 import copy
 from knockknock import discord_sender
 import vec2text
+from loguru import logger
+
 class TopClusTrainer(object):
 
     def __init__(self, args):
@@ -42,11 +44,13 @@ class TopClusTrainer(object):
         # self.utils.create_dataset(self.data_dir, "texts.txt", "text.pt")
         data = self.load_dataset(self.data_dir, "text.pt")
         theme_data = self.load_dataset(self.data_dir, "theme_text.pt")
+        preference_data = self.load_dataset(self.data_dir, "preference.pt")
         input_ids = data["input_ids"]
         attention_masks = data["attention_masks"]
         valid_pos = data["valid_pos"]
         self.data = TensorDataset(input_ids, attention_masks, valid_pos)
         self.theme_data = TensorDataset(theme_data["input_ids"], theme_data["attention_masks"], theme_data["valid_pos"])
+        self.preference_data = TensorDataset(preference_data["input_ids1"], preference_data["attention_mask1"], preference_data["valid_pos1"], preference_data["input_ids2"], preference_data["attention_mask2"], preference_data["valid_pos2"], preference_data["relation"])
         self.batch_size = args.batch_size
         self.res_dir = os.path.join(args.dataset, "topclus")
         os.makedirs(self.res_dir, exist_ok=True)
@@ -72,8 +76,8 @@ class TopClusTrainer(object):
     @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def text_inversion(self):
         # ===
-        pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
-        self.model.ae.load_state_dict(torch.load(pretrained_path))  
+        # pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
+        # self.model.ae.load_state_dict(torch.load(pretrained_path))  
         sampler = RandomSampler(self.data)
         dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
         theme_sampler = RandomSampler(self.theme_data)
@@ -88,65 +92,40 @@ class TopClusTrainer(object):
         
         max_len = attention_mask.sum(-1).max().item()
         input_ids, attention_mask, valid_pos = tuple(t[:, :max_len] for t in (input_ids, attention_mask, valid_pos))
-        input_embs, output_embs = self.model(input_ids, attention_mask, pretrain=True)
-        print(input_embs.shape)
-        print(output_embs.shape)
-        
-        print(input_embs[:5])
-        print(output_embs[:5])
-        
-        print(F.mse_loss(input_embs, output_embs))
-        
-        return
-        
-        # model.py를 참고하여 document embedding 생성
-        last_hidden_states = self.model._get_encoder_outputs(input_ids, attention_mask)
-        attention_mask[:, 0] = 0
-        
-        # model.py를 참고하여 document embedding 생성 후 autoencoder 통과
-        trans_states = self.model.dense(last_hidden_states)
-        trans_states = self.model.activation(trans_states)
-        attn_logits = torch.matmul(trans_states, self.model.v)
-        attention_mask[:, 0] = 0
-        attn_mask = attention_mask == 0
-        attn_logits.masked_fill_(attn_mask, float('-inf'))
-        attn_weights = F.softmax(attn_logits, dim=-1)
-        doc_emb = (last_hidden_states * attn_weights.unsqueeze(-1)).sum(dim=1)
-        
+        doc_emb, input_embs, output_embs, rec_doc_emb, p_word, _ = self.model(input_ids, attention_mask, valid_pos)
         
         corrector = vec2text.load_pretrained_corrector("gtr-base")
         original_text = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
         output1 = vec2text.invert_embeddings(
-            embeddings=doc_emb.to("mps"),
+            embeddings=doc_emb.to("cuda"),
             corrector=corrector,
             num_steps=20,
         )
         output2 = vec2text.invert_embeddings(
-            embeddings=output_embs.to("mps"),
+            embeddings=rec_doc_emb.to("cuda"),
             corrector=corrector,
             num_steps=20,
         )
         
         for a, b, c in zip(output1, output2, original_text):
-            print(a)
-            print(b)
-            print("Label: ", c)
-            print("--------------------------------")
+            logger.info(a)
+            logger.info(b)
+            logger.info(f"Label: {c}")
+            logger.info("--------------------------------")
+        
         # ===
 
     # pretrain autoencoder with reconstruction loss
     @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def pretrain(self, pretrain_epoch=20):
         pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
-        #TODO 이미 학습된 모델이 있으면 그 모델을 불러오기
-        if None:#  os.path.exists(pretrained_path):
+        if os.path.exists(pretrained_path):
             print(f"Loading pretrained model from {pretrained_path}")
             trainer.model.ae.load_state_dict(torch.load(pretrained_path))
         else:
-            trainer.model.ae.load_state_dict(torch.load(pretrained_path))
             print(f"Pretraining autoencoder")
             sampler = RandomSampler(self.data)
-            dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
+            dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size, num_workers=4)
             model = self.model.to(self.device)
             model.eval()
             optimizer = Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=self.args.lr)
@@ -164,8 +143,10 @@ class TopClusTrainer(object):
                     loss.backward()
                     optimizer.step()
                 print(f"epoch {epoch}: loss = {total_loss / (batch_idx+1):.4f}")
-            torch.save(model.ae.state_dict(), pretrained_path)
-            print(f"Pretrained model saved to {pretrained_path}")
+                
+                if (epoch+1) % 5 == 0:
+                    torch.save(model.ae.state_dict(), pretrained_path)
+                    print(f"Pretrained model saved to {pretrained_path}")
 
     # initialize topic embeddings via K-Means clustering in the spherical latent space
     def cluster_init(self):
@@ -262,8 +243,6 @@ class TopClusTrainer(object):
         self.cluster_init()
         sampler = RandomSampler(self.data)
         dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
-        theme_sampler = RandomSampler(self.theme_data)
-        theme_dataset_loader = DataLoader(self.theme_data, sampler=theme_sampler, batch_size=self.batch_size)
         model = self.model.to(self.device)
         model.eval()
         optimizer = Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=self.args.lr)
@@ -278,22 +257,113 @@ class TopClusTrainer(object):
                 valid_pos = batch[2].to(self.device)
                 max_len = attention_mask.sum(-1).max().item()
                 input_ids, attention_mask, valid_pos = tuple(t[:, :max_len] for t in (input_ids, attention_mask, valid_pos))
-                doc_emb, input_embs, output_embs, rec_doc_emb, p_word = model(input_ids, attention_mask, valid_pos)
+                doc_emb, input_embs, output_embs, rec_doc_emb, p_word, _ = model(input_ids, attention_mask, valid_pos)
                 rec_loss = F.mse_loss(output_embs, input_embs)
                 rec_doc_loss = F.mse_loss(rec_doc_emb, doc_emb)
-                targets = self.target_distribution(p_word).detach()
-                clus_loss = F.kl_div(p_word.log(), targets, reduction='batchmean')
-                loss = rec_loss + rec_doc_loss + self.args.cluster_weight * clus_loss
+                # targets = self.target_distribution(p_word).detach()
+                # clus_loss = F.kl_div(p_word.log(), targets, reduction='batchmean')
+                loss = rec_loss + rec_doc_loss # + self.args.cluster_weight * clus_loss
                 total_rec_loss += rec_loss.item()
-                total_clus_loss += clus_loss.item()
+                #total_clus_loss += clus_loss.item()
                 total_rec_doc_loss += rec_doc_loss.item()
                 loss.backward()
                 optimizer.step()
             if (epoch+1) % 10 == 0 and self.args.do_inference:
                 self.inference(topk=self.args.k, suffix=f"_{epoch}")
+                
+            if (epoch+1) % 5 == 0:
+                model_path = os.path.join(self.data_dir, "model.pt")
+                torch.save(model.state_dict(), model_path)
+                print(f"model saved to {model_path}")
             print(f"epoch {epoch+1}: rec_loss = {total_rec_loss / (batch_idx+1):.4f}; rec_doc_loss = {total_rec_doc_loss / (batch_idx+1):.4f}; cluster_loss = {total_clus_loss / (batch_idx+1):.4f}")
-
+        
         model_path = os.path.join(self.data_dir, "model.pt")
+        torch.save(model.state_dict(), model_path)
+        print(f"model saved to {model_path}")
+
+    def cluster_preference(self, epochs=20):
+        model = self.model.to(self.device)
+        model.eval()
+        optimizer = Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=self.args.lr)
+        
+        preference_sampler = RandomSampler(self.preference_data)
+        preference_dataset_loader = DataLoader(self.preference_data, sampler=preference_sampler, batch_size=self.batch_size)
+        for epoch in range(epochs): 
+            total_rec_loss = 0
+            total_rec_doc_loss = 0
+            total_clus_loss = 0
+            total_constraint_loss = 0
+            for batch_idx, batch in enumerate(tqdm(preference_dataset_loader, desc=f"Clustering epoch {epoch+1}/{epochs}")):
+                optimizer.zero_grad()
+                input_ids1 = batch[0].to(self.device)
+                attention_mask1 = batch[1].to(self.device)
+                valid_pos1 = batch[2].to(self.device)
+                input_ids2 = batch[3].to(self.device)
+                attention_mask2 = batch[4].to(self.device)
+                valid_pos2 = batch[5].to(self.device)
+                labels = batch[6].to(self.device)
+                max_len1 = attention_mask1.sum(-1).max().item()
+                max_len2 = attention_mask2.sum(-1).max().item()
+                input_ids1, attention_mask1, valid_pos1 = tuple(t[:, :max_len1] for t in (input_ids1, attention_mask1, valid_pos1))
+                input_ids2, attention_mask2, valid_pos2 = tuple(t[:, :max_len2] for t in (input_ids2, attention_mask2, valid_pos2))
+                doc_emb1, input_embs1, output_embs1, rec_doc_emb1, p_word1, p_doc1 = model(input_ids1, attention_mask1, valid_pos1)
+                doc_emb2, input_embs2, output_embs2, rec_doc_emb2, p_word2, p_doc2 = model(input_ids2, attention_mask2, valid_pos2)
+                
+                rec_loss = F.mse_loss(output_embs1, input_embs1)
+                rec_doc_loss = F.mse_loss(rec_doc_emb1, doc_emb1)
+                targets = self.target_distribution(p_word1).detach()
+                clus_loss = F.kl_div(p_word1.log(), targets, reduction='batchmean')
+                
+                rec_loss += F.mse_loss(output_embs2, input_embs2)
+                rec_doc_loss += F.mse_loss(rec_doc_emb2, doc_emb2)
+                targets = self.target_distribution(p_word2).detach()
+                clus_loss += F.kl_div(p_word2.log(), targets, reduction='batchmean')
+                
+                pos_indices = torch.where(labels == 1)[0]
+                neg_indices = torch.where(labels == -1)[0]
+
+                # positive 쌍에 대한 유사도 계산
+                if len(pos_indices) > 0:
+                    pos_p_doc1 = p_doc1[pos_indices]
+                    pos_p_doc2 = p_doc2[pos_indices]
+                    pos_sim = torch.sum(pos_p_doc1 * pos_p_doc2, dim=1)
+                    pos_sim = torch.clamp(pos_sim, 1e-7, 1.0 - 1e-7)  # 수치적 안정성
+                    pos_loss = -torch.mean(torch.log(pos_sim))
+                else:
+                    pos_loss = torch.tensor(0.0, device=self.device)
+
+                # negative 쌍에 대한 유사도 계산
+                if len(neg_indices) > 0:
+                    neg_p_doc1 = p_doc1[neg_indices]
+                    neg_p_doc2 = p_doc2[neg_indices]
+                    neg_sim = torch.sum(neg_p_doc1 * neg_p_doc2, dim=1)
+                    neg_sim = torch.clamp(neg_sim, 1e-7, 1.0 - 1e-7)  # 수치적 안정성
+                    neg_loss = -torch.mean(torch.log(1 - neg_sim))
+                else:
+                    neg_loss = torch.tensor(0.0, device=self.device)
+
+                # 전체 constraint loss 계산
+                constraint_loss = pos_loss + neg_loss
+
+                # 논문에 따라 가중치를 적용하여 전체 손실에 추가
+                loss = rec_loss + rec_doc_loss + self.args.cluster_weight * clus_loss + constraint_loss
+                
+                total_rec_loss += rec_loss.item()
+                total_clus_loss += clus_loss.item()
+                total_rec_doc_loss += rec_doc_loss.item()
+                total_constraint_loss += constraint_loss.item()
+                loss.backward()
+                optimizer.step()
+            if (epoch+1) % 10 == 0 and self.args.do_inference:
+                self.inference(topk=self.args.k, suffix=f"_{epoch}")
+                
+            if (epoch+1) % 5 == 0:
+                model_path = os.path.join(self.data_dir, "model_preference.pt")
+                torch.save(model.state_dict(), model_path)
+                print(f"model saved to {model_path}")
+            print(f"epoch {epoch+1}: rec_loss = {total_rec_loss / (batch_idx+1):.4f}; rec_doc_loss = {total_rec_doc_loss / (batch_idx+1):.4f}; cluster_loss = {total_clus_loss / (batch_idx+1):.4f}; constraint_loss = {total_constraint_loss / (batch_idx+1):.4f}")    
+            
+        model_path = os.path.join(self.data_dir, "model_preference.pt")
         torch.save(model.state_dict(), model_path)
         print(f"model saved to {model_path}")
 
@@ -344,13 +414,13 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset', default='dstc12-data/AppenBanking/')
     parser.add_argument('--dataset_file', default='dstc12-data/AppenBanking/all.jsonl')
-    parser.add_argument('--batch_size', type=int, default=128)
-    parser.add_argument('--lr', type=float, default=5e-4)
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--n_clusters', default=29, type=int, help='number of topics')
+    parser.add_argument('--n_clusters', default=15, type=int, help='number of topics')
     parser.add_argument('--k', default=10, type=int, help='number of top words to display per topic')
     parser.add_argument('--input_dim', default=768, type=int, help='embedding dimention of pretrained language model')
-    parser.add_argument('--pretrain_epoch', default=80 , type=int, help='number of epochs for pretraining autoencoder')
+    parser.add_argument('--pretrain_epoch', default=50 , type=int, help='number of epochs for pretraining autoencoder')
     parser.add_argument('--kappa', default=10, type=float, help='concentration parameter kappa')
     parser.add_argument('--hidden_dims', default='[500, 500, 1000, 100]', type=str)
     parser.add_argument('--do_cluster', action='store_true')
@@ -358,7 +428,9 @@ if __name__ == '__main__':
     parser.add_argument('--do_kmeans', action='store_true')
     parser.add_argument('--do_test', action='store_true')
     parser.add_argument('--cluster_weight', default=0.1, type=float, help='weight of clustering loss')
-    parser.add_argument('--epochs', default=20, type=int, help='number of epochs for clustering')
+    parser.add_argument('--epochs', default=30, type=int, help='number of epochs for clustering')
+    parser.add_argument('--do_preference', action='store_true')
+    parser.add_argument('--preference_epochs', default=3, type=int, help='number of epochs for clustering with preference')
 
     args = parser.parse_args()
     print(args)
@@ -372,12 +444,26 @@ if __name__ == '__main__':
     trainer = TopClusTrainer(args)
     
     if args.do_test:
+        model_path = os.path.join(args.dataset, "topclus", "model.pt")
+        try:
+            trainer.model.load_state_dict(torch.load(model_path))
+        except:
+            print("No model found! Run clustering first!")
+            exit(-1)
         trainer.text_inversion()
     
     if args.do_cluster:
         trainer.clustering(epochs=args.epochs)
-    if args.do_inference:
+    if args.do_preference:
         model_path = os.path.join(args.dataset, "topclus", "model.pt")
+        try:
+            trainer.model.load_state_dict(torch.load(model_path))
+        except:
+            print("No model found! Run clustering first!")
+            exit(-1)
+        trainer.cluster_preference(epochs=args.preference_epochs)
+    if args.do_inference:
+        model_path = os.path.join(args.dataset, "topclus", "model_preference.pt")
         try:
             trainer.model.load_state_dict(torch.load(model_path))
         except:
