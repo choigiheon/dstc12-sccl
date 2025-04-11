@@ -70,7 +70,7 @@ def run(args):
     
     # 세 번째 단계: 양성/음성 쌍 기반 훈련
     loader_negative = dataloader.dstc12_loader_with_negative(args)
-    global_step = trainer.train(TrainType.joint_train, loader_negative, global_step=global_step)
+    global_step = trainer.train(TrainType.joint_train, loader_negative, global_step=global_step, positive_loader=loader_positive)
     cluster_label_map = trainer.predict(args.result_file)
     metrics = trainer.evaluate(args.dataset_file, args.result_file)
     

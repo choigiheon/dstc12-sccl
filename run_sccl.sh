@@ -27,9 +27,9 @@ python3 sccl/cluster.py \
     --temperature 0.5 \
     --n-clusters $n_clusters \
     --alpha 1.0 \
-    --n-init 10 \
+    --n-init 100 \
     --print-freq 10 \
     --eval-interval 100 \
     --preference-file $preference_file \
     --negative-alpha 1 \
-    --update-interval 1
+    --update-interval 1 \

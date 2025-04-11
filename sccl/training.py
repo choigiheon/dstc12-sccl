@@ -124,6 +124,7 @@ class SCCLvTrainer(nn.Module):
         return losses
     
     def train_step_joint(self, input_ids, attention_mask):
+        # negative
         embd1_1, embd1_2, embd2_1, embd2_2 = self.model(input_ids, attention_mask, task_type=TrainType.joint_train)
 
         # Instance-CL loss
@@ -152,7 +153,7 @@ class SCCLvTrainer(nn.Module):
         self.optimizer.zero_grad()
         return losses
     
-    def train(self, train_type, train_loader, global_step=0):
+    def train(self, train_type, train_loader, global_step=0, positive_loader=None):
         if train_type == TrainType.pre_train:
             print("Train Type: ", "pre_train")
             max_epoch = self.args.pre_train_epoch
@@ -191,6 +192,16 @@ class SCCLvTrainer(nn.Module):
                 elif train_type == TrainType.inter_train:
                     losses = self.train_step_inter(input_ids, attention_mask)
                 elif train_type == TrainType.joint_train:
+                    
+                    try:
+                        batch = next(positive_iter)
+                    except:
+                        positive_iter = iter(positive_loader)
+                        batch = next(positive_iter)
+                    
+                    
+                    positive_input_ids, positive_attention_mask = self.prepare_transformer_input(batch, TrainType.inter_train)
+                    losses = self.train_step_inter(positive_input_ids, positive_attention_mask) # 양성 쌍도 훈련
                     losses = self.train_step_joint(input_ids, attention_mask)
                 
                 iteration_count += 1
@@ -231,7 +242,7 @@ class SCCLvTrainer(nn.Module):
 
             dataloader = unshuffle_dstc12_loader(self.args)
             if train_type == TrainType.pre_train and epoch == 0:
-                all_embeddings, all_utterances = self.get_embeddings(train_loader)
+                all_embeddings, all_utterances = self.get_embeddings(dataloader)
                 self.cluster_model.init(all_embeddings)
             
             if (epoch % self.args.update_interval == 0) and epoch != 0:
