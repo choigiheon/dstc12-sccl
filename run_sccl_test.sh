@@ -1,4 +1,4 @@
-device="cuda"
+device="mps"
 dataset_file="./dstc12-data/AppenBanking/all_sampled.jsonl"
 result_file="./appen_banking_predicted.jsonl"
 preference_file="./dstc12-data/AppenBanking/preference_pairs_sampled.json"
@@ -33,8 +33,8 @@ python3 sccl/cluster.py \
     --preference-file $preference_file
 
 # 두 번째 실행: 데이터셋과 선호도 파일 변경
-dataset_file="./dstc12-data/AppenBanking/all.jsonl"
-preference_file="./dstc12-data/AppenBanking/preference_pairs.json"
+dataset_file="./dstc12-data/AppenBanking/all_sampled.jsonl"
+preference_file="./dstc12-data/AppenBanking/preference_pairs_sampled.json"
 # pre_train_epoch=1, joint_train_epoch=1 유지
 
 python3 sccl/cluster.py \

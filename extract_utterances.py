@@ -33,6 +33,7 @@ class UtteranceUtils:
         all.jsonl 파일에서 모든 utterance를 추출합니다.
         """
         utterances = []
+        theme_utterances = []
         
         with open(dataset_file, 'r', encoding='utf-8') as f:
             for line in tqdm(f, desc="Extracting utterances from dataset"):
@@ -41,26 +42,38 @@ class UtteranceUtils:
                     utterance_text = turn.get("utterance")
                     if utterance_text:
                         utterances.append(utterance_text)
+                        
+        with open(dataset_file, 'r', encoding='utf-8') as f:
+            for line in tqdm(f, desc="Extracting utterances from dataset"):
+                conversation = json.loads(line)
+                for turn in conversation["turns"]:
+                    if turn['theme_label'] is not None:
+                        theme_utterances_text = turn.get("utterance")
+                        if theme_utterances_text:
+                            theme_utterances.append(theme_utterances_text)
         
         # 중복 제거 및 정렬
-        print(utterances)
         print(f"총 추출된 unique utterance: {len(utterances)}개")
-        return utterances
+        print(f"총 추출된 unique theme utterance: {len(theme_utterances)}개")
+        return utterances, theme_utterances
     
-    def save_texts_txt(self, docs, output_dir):
+    def save_texts_txt(self, docs, theme_docs, output_dir):
         """
         추출된 텍스트를 texts.txt 파일로 저장합니다.
         """
         output_file = os.path.join(output_dir, "texts.txt")
+        theme_output_file = os.path.join(output_dir, "theme_texts.txt")
         os.makedirs(output_dir, exist_ok=True)
         
         print(f"Saving texts to {output_file}")
         with open(output_file, 'w', encoding='utf-8') as f:
             for doc in docs:
                 f.write(f"{doc}\n")
-        
+        with open(theme_output_file, 'w', encoding='utf-8') as f:
+            for doc in theme_docs:
+                f.write(f"{doc}\n")
         print(f"텍스트가 {output_file}에 성공적으로 저장되었습니다.")
-    
+        print(f"텍스트가 {theme_output_file}에 성공적으로 저장되었습니다.")
     def create_dataset(self, dataset_dir, text_file, loader_name, max_len=512):
         """
         texts.txt 파일을 읽어 PT 파일로 저장합니다.
@@ -108,15 +121,14 @@ class UtteranceUtils:
         os.makedirs(output_dir, exist_ok=True)
         
         # utterance 추출
-        docs = self.extract_utterances(dataset_file)
+        docs, theme_docs = self.extract_utterances(dataset_file)
         
         # texts.txt 저장
-        self.save_texts_txt(docs, output_dir)
-        
+        self.save_texts_txt(docs, theme_docs, output_dir)
         # text.pt 생성
         data = self.create_dataset(output_dir, "texts.txt", "text.pt", max_len)
-        
-        return data
+        theme_data = self.create_dataset(output_dir, "theme_texts.txt", "theme_text.pt", max_len)
+        return data, theme_data
 
 def main():
     parser = argparse.ArgumentParser(description="Extract utterances from all.jsonl and save as texts.txt and text.pt files")
@@ -130,7 +142,7 @@ def main():
     args = parser.parse_args()
     
     utils = UtteranceUtils()
-    data = utils.process_all_jsonl(args.dataset_file, args.output_dir, args.max_len)
+    data, theme_data = utils.process_all_jsonl(args.dataset_file, args.output_dir, args.max_len)
     print(f"데이터 크기: {data['input_ids'].shape}")
     print(f"처리가 완료되었습니다. 파일들이 {args.output_dir} 디렉토리에 저장되었습니다.")
 

@@ -41,10 +41,12 @@ class TopClusTrainer(object):
         self.data_dir = os.path.join(args.dataset, "topclus")
         # self.utils.create_dataset(self.data_dir, "texts.txt", "text.pt")
         data = self.load_dataset(self.data_dir, "text.pt")
+        theme_data = self.load_dataset(self.data_dir, "theme_text.pt")
         input_ids = data["input_ids"]
         attention_masks = data["attention_masks"]
         valid_pos = data["valid_pos"]
         self.data = TensorDataset(input_ids, attention_masks, valid_pos)
+        self.theme_data = TensorDataset(theme_data["input_ids"], theme_data["attention_masks"], theme_data["valid_pos"])
         self.batch_size = args.batch_size
         self.res_dir = os.path.join(args.dataset, "topclus")
         os.makedirs(self.res_dir, exist_ok=True)
@@ -67,40 +69,62 @@ class TopClusTrainer(object):
         data = torch.load(loader_file)
         return data
     
-    def emb_to_text(self, emb):
+    @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
+    def text_inversion(self):
         # ===
         pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
         self.model.ae.load_state_dict(torch.load(pretrained_path))  
         sampler = RandomSampler(self.data)
         dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
-        
+        theme_sampler = RandomSampler(self.theme_data)
+        theme_dataset_loader = DataLoader(self.theme_data, sampler=theme_sampler, batch_size=self.batch_size)
         self.model = self.model.to(self.device)
         self.model.eval()
         
-        batch = next(iter(dataset_loader))
+        batch = next(iter(theme_dataset_loader))
         input_ids = batch[0].to(self.device)
         attention_mask = batch[1].to(self.device)
         valid_pos = batch[2].to(self.device)
         
         max_len = attention_mask.sum(-1).max().item()
         input_ids, attention_mask, valid_pos = tuple(t[:, :max_len] for t in (input_ids, attention_mask, valid_pos))
-        avg_doc_emb, input_embs, output_embs, rec_doc_emb, p_word = self.model(input_ids, attention_mask, valid_pos)
+        input_embs, output_embs = self.model(input_ids, attention_mask, pretrain=True)
+        print(input_embs.shape)
+        print(output_embs.shape)
         
-        original_text = self.tokenizer.batch_decode(input_ids[:10], skip_special_tokens=True)
-        emb1 = avg_doc_emb[:10]
-        emb2 = rec_doc_emb[:10]
+        print(input_embs[:5])
+        print(output_embs[:5])
+        
+        print(F.mse_loss(input_embs, output_embs))
+        
+        return
+        
+        # model.py를 참고하여 document embedding 생성
+        last_hidden_states = self.model._get_encoder_outputs(input_ids, attention_mask)
+        attention_mask[:, 0] = 0
+        
+        # model.py를 참고하여 document embedding 생성 후 autoencoder 통과
+        trans_states = self.model.dense(last_hidden_states)
+        trans_states = self.model.activation(trans_states)
+        attn_logits = torch.matmul(trans_states, self.model.v)
+        attention_mask[:, 0] = 0
+        attn_mask = attention_mask == 0
+        attn_logits.masked_fill_(attn_mask, float('-inf'))
+        attn_weights = F.softmax(attn_logits, dim=-1)
+        doc_emb = (last_hidden_states * attn_weights.unsqueeze(-1)).sum(dim=1)
+        
         
         corrector = vec2text.load_pretrained_corrector("gtr-base")
-        
+        original_text = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
         output1 = vec2text.invert_embeddings(
-            embeddings=emb1.to("mps"),
+            embeddings=doc_emb.to("mps"),
             corrector=corrector,
-            num_steps=50,
+            num_steps=20,
         )
         output2 = vec2text.invert_embeddings(
-            embeddings=emb2.to("mps"),
+            embeddings=output_embs.to("mps"),
             corrector=corrector,
-            num_steps=50,
+            num_steps=20,
         )
         
         for a, b, c in zip(output1, output2, original_text):
@@ -114,10 +138,12 @@ class TopClusTrainer(object):
     @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def pretrain(self, pretrain_epoch=20):
         pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
-        if os.path.exists(pretrained_path):
+        #TODO 이미 학습된 모델이 있으면 그 모델을 불러오기
+        if None:#  os.path.exists(pretrained_path):
             print(f"Loading pretrained model from {pretrained_path}")
             trainer.model.ae.load_state_dict(torch.load(pretrained_path))
         else:
+            trainer.model.ae.load_state_dict(torch.load(pretrained_path))
             print(f"Pretraining autoencoder")
             sampler = RandomSampler(self.data)
             dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
@@ -142,7 +168,6 @@ class TopClusTrainer(object):
             print(f"Pretrained model saved to {pretrained_path}")
 
     # initialize topic embeddings via K-Means clustering in the spherical latent space
-    @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def cluster_init(self):
         latent_emb_path = os.path.join(self.data_dir,"init_latent_emb.pt")
         model = self.model.to(self.device)
@@ -181,14 +206,16 @@ class TopClusTrainer(object):
     @discord_sender(webhook_url="https://discord.com/api/webhooks/1359959139052290359/DFz7VrxBveCDUsEZYiPGXhDZ8IlccXXw4gFf8jH7QsZzyFock549yEwLW61HEo1Sgt9O")
     def inference(self, topk=10, suffix=""):
         sampler = SequentialSampler(self.data)
-        dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
+        dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)    
+        theme_sampler = SequentialSampler(self.theme_data)
+        theme_dataset_loader = DataLoader(self.theme_data, sampler=theme_sampler, batch_size=self.batch_size)
         model = self.model.to(self.device)
         model.eval()
         latent_doc_embs = []
         word_topic_sim = -1 * torch.ones((len(self.vocab), self.n_clusters))
         word_topic_sim_dict = defaultdict(list)
         with torch.no_grad():
-            for batch in tqdm(dataset_loader, desc="Inference"):
+            for batch in tqdm(theme_dataset_loader, desc="Inference"):
                 input_ids = batch[0].to(self.device)
                 attention_mask = batch[1].to(self.device)
                 max_len = attention_mask.sum(-1).max().item()
@@ -235,10 +262,12 @@ class TopClusTrainer(object):
         self.cluster_init()
         sampler = RandomSampler(self.data)
         dataset_loader = DataLoader(self.data, sampler=sampler, batch_size=self.batch_size)
+        theme_sampler = RandomSampler(self.theme_data)
+        theme_dataset_loader = DataLoader(self.theme_data, sampler=theme_sampler, batch_size=self.batch_size)
         model = self.model.to(self.device)
         model.eval()
         optimizer = Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=self.args.lr)
-        for epoch in range(epochs):
+        for epoch in range(epochs): 
             total_rec_loss = 0
             total_rec_doc_loss = 0
             total_clus_loss = 0
@@ -271,12 +300,13 @@ class TopClusTrainer(object):
     def kmeans(self, dataset_file, n_clusters):
         emb_path = os.path.join(self.data_dir, "latent_doc_emb.pt")
         text_file = os.path.join(self.data_dir, "texts.txt")
+        theme_text_file = os.path.join(self.data_dir, "theme_texts.txt")
         result_file = os.path.join(self.data_dir, "cluster_label_map.json")
         
         utils = TopClusUtils()
         cluster_result = utils.cluster(emb_path, n_clusters)
         
-        with open(text_file, 'r', encoding='utf-8') as f:
+        with open(theme_text_file, 'r', encoding='utf-8') as f:
             utterances = [line.strip() for line in f]
             
         cluster_label_map = {}
@@ -314,20 +344,21 @@ if __name__ == '__main__':
 
     parser.add_argument('--dataset', default='dstc12-data/AppenBanking/')
     parser.add_argument('--dataset_file', default='dstc12-data/AppenBanking/all.jsonl')
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--n_clusters', default=29, type=int, help='number of topics')
     parser.add_argument('--k', default=10, type=int, help='number of top words to display per topic')
     parser.add_argument('--input_dim', default=768, type=int, help='embedding dimention of pretrained language model')
-    parser.add_argument('--pretrain_epoch', default=20 , type=int, help='number of epochs for pretraining autoencoder')
+    parser.add_argument('--pretrain_epoch', default=80 , type=int, help='number of epochs for pretraining autoencoder')
     parser.add_argument('--kappa', default=10, type=float, help='concentration parameter kappa')
     parser.add_argument('--hidden_dims', default='[500, 500, 1000, 100]', type=str)
     parser.add_argument('--do_cluster', action='store_true')
     parser.add_argument('--do_inference', action='store_true')
     parser.add_argument('--do_kmeans', action='store_true')
+    parser.add_argument('--do_test', action='store_true')
     parser.add_argument('--cluster_weight', default=0.1, type=float, help='weight of clustering loss')
-    parser.add_argument('--epochs', default=1, type=int, help='number of epochs for clustering')
+    parser.add_argument('--epochs', default=20, type=int, help='number of epochs for clustering')
 
     args = parser.parse_args()
     print(args)
@@ -339,6 +370,9 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = False
 
     trainer = TopClusTrainer(args)
+    
+    if args.do_test:
+        trainer.text_inversion()
     
     if args.do_cluster:
         trainer.clustering(epochs=args.epochs)
