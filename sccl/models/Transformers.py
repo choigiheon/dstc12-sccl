@@ -5,6 +5,7 @@ Author: Dejiao Zhang (dejiaoz@amazon.com)
 Date: 02/26/2021
 """
 
+from sklearn import logger
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -126,6 +127,7 @@ class SCCLModel(nn.Module):
         return emb1_1, emb1_2, emb2_1, emb2_2
     
     def set_cluster_head(self, cluster_head):
+        print(f"Cluster head changed")
         self.cluster_head.data.copy_(cluster_head)
         
     def get_cluster_prob(self, embeddings):

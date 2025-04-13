@@ -45,10 +45,10 @@ def get_model(args):
     #     tokenizer = AutoTokenizer.from_pretrained(BERT_CLASS[args.bert])
     #     print("..... loading plain BERT !!!")
     
-    config = AutoConfig.from_pretrained(args.model_name)
+    config = AutoConfig.from_pretrained(args.model_name, trust_remote_code=True)
     config.hidden_dropout_prob = args.dropout
-    model = AutoModel.from_pretrained(pretrained_model_name_or_path=args.model_name, config=config)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    model = AutoModel.from_pretrained(pretrained_model_name_or_path=args.model_name, config=config, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True)
         
     return model, tokenizer
 

@@ -22,7 +22,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from learner.cluster_utils import target_distribution
 from learner.contrastive_utils import PairConLossPositive, PairConLossNegative
-
+from loguru import logger
 class TrainType:
     pre_train = "pre_train"
     inter_train = "inter_train"
@@ -38,7 +38,7 @@ class SCCLvTrainer(nn.Module):
         self.cluster_model = cluster_model
         self.contrast_loss_positive = PairConLossPositive(temperature=self.args.temperature)
         self.contrast_loss_negative = PairConLossNegative(temperature=self.args.temperature, negative_alpha=self.args.negative_alpha)
-        self.cluster_loss = nn.KLDivLoss(size_average=False)
+        self.cluster_loss = nn.KLDivLoss(size_average=False, reduction='batchmean')
         
         self.gstep = 0
         print(f"*****Intialize SCCLv, temp:{self.args.temperature}\n")
@@ -174,14 +174,15 @@ class SCCLvTrainer(nn.Module):
         wandb.log({f"{train_type}_initial_{k}": v for k, v in metrics.items()}, step=global_step)
         iteration_count = 0
         
+        if train_type == TrainType.inter_train:
+            self.model.set_cluster_head(self.cluster_model.get_hsc())
+        
         for epoch in tqdm(np.arange(max_epoch)):
             self.model.train()
             
             epoch_loss = 0
             batch_count = 0
             
-            if train_type == TrainType.inter_train:
-                self.model.set_cluster_head(self.cluster_model.get_hsc())
             
             # 각 에포크마다 전체 데이터셋을 순회
             for batch in train_loader:
@@ -236,16 +237,21 @@ class SCCLvTrainer(nn.Module):
                 if iteration_count % self.args.eval_interval == 0:
                     self.predict(self.args.result_file)
                     metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
+                    torch.save(self.model.state_dict(), "sccl_model.pt")
                     # 평가 메트릭 로깅 - stage 정보 포함
                     wandb.log({f"{train_type}_eval_{k}": v for k, v in metrics.items()}, step=global_step)
                     self.model.train()
+                    
+                if (iteration_count % self.args.update_interval == 0) and epoch != 0:
+                    all_embeddings, all_utterances = self.get_embeddings(dataloader)
+                    self.cluster_model.update(all_embeddings)
 
             dataloader = unshuffle_dstc12_loader(self.args)
             if train_type == TrainType.pre_train and epoch == 0:
                 all_embeddings, all_utterances = self.get_embeddings(dataloader)
                 self.cluster_model.init(all_embeddings)
             
-            if (epoch % self.args.update_interval == 0) and epoch != 0:
+            if train_type == TrainType.inter_train or train_type == TrainType.joint_train:
                 all_embeddings, all_utterances = self.get_embeddings(dataloader)
                 self.cluster_model.update(all_embeddings)
             

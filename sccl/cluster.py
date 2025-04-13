@@ -107,7 +107,7 @@ def get_args(argv):
     parser.add_argument('--n-clusters', type=int, default=14)
     parser.add_argument('--alpha', type=float, default=1.0)
     parser.add_argument('--n-init', type=int, default=100, help="Kmeans++의 초기화 횟수")
-    parser.add_argument('--update-interval', type=int, default=1, help="update interval")
+    parser.add_argument('--update-interval', type=int, default=100, help="update interval")
     parser.add_argument('--cluster-head-dim', type=int, default=768, help="cluster head dimension")
     
     # evaluation

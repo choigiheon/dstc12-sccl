@@ -97,12 +97,12 @@ class TopClusTrainer(object):
         corrector = vec2text.load_pretrained_corrector("gtr-base")
         original_text = self.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
         output1 = vec2text.invert_embeddings(
-            embeddings=doc_emb.to("cuda"),
+            embeddings=doc_emb.to(self.device),
             corrector=corrector,
             num_steps=20,
         )
         output2 = vec2text.invert_embeddings(
-            embeddings=rec_doc_emb.to("cuda"),
+            embeddings=rec_doc_emb.to(self.device),
             corrector=corrector,
             num_steps=20,
         )
@@ -121,7 +121,7 @@ class TopClusTrainer(object):
         pretrained_path = os.path.join(self.data_dir,"pretrained.pt")
         if os.path.exists(pretrained_path):
             print(f"Loading pretrained model from {pretrained_path}")
-            trainer.model.ae.load_state_dict(torch.load(pretrained_path))
+            trainer.model.ae.load_state_dict(torch.load(pretrained_path, map_location="mps"))
         else:
             print(f"Pretraining autoencoder")
             sampler = RandomSampler(self.data)
@@ -258,11 +258,11 @@ class TopClusTrainer(object):
                 doc_emb, input_embs, output_embs, rec_doc_emb, p_word, _ = model(input_ids, attention_mask, valid_pos)
                 rec_loss = F.mse_loss(output_embs, input_embs)
                 rec_doc_loss = F.mse_loss(rec_doc_emb, doc_emb)
-                # targets = self.target_distribution(p_word).detach()
-                # clus_loss = F.kl_div(p_word.log(), targets, reduction='batchmean')
-                loss = rec_loss + rec_doc_loss # + self.args.cluster_weight * clus_loss
+                targets = self.target_distribution(p_word).detach()
+                clus_loss = F.kl_div(p_word.log(), targets, reduction='batchmean')
+                loss = rec_loss + rec_doc_loss + self.args.cluster_weight * clus_loss
                 total_rec_loss += rec_loss.item()
-                #total_clus_loss += clus_loss.item()
+                total_clus_loss += clus_loss.item()
                 total_rec_doc_loss += rec_doc_loss.item()
                 loss.backward()
                 optimizer.step()
@@ -415,7 +415,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--lr', type=float, default=5e-4)
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--n_clusters', default=15, type=int, help='number of topics')
+    parser.add_argument('--n_clusters', default=100, type=int, help='number of topics')
     parser.add_argument('--k', default=10, type=int, help='number of top words to display per topic')
     parser.add_argument('--input_dim', default=768, type=int, help='embedding dimention of pretrained language model')
     parser.add_argument('--pretrain_epoch', default=50 , type=int, help='number of epochs for pretraining autoencoder')
@@ -444,7 +444,7 @@ if __name__ == '__main__':
     if args.do_test:
         model_path = os.path.join(args.dataset, "topclus", "model.pt")
         try:
-            trainer.model.load_state_dict(torch.load(model_path))
+            trainer.model.load_state_dict(torch.load(model_path, map_location="mps"))
         except:
             print("No model found! Run clustering first!")
             exit(-1)
