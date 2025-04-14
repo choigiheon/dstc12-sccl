@@ -19,8 +19,7 @@ from utils.kmeans import get_kmeans_centers, ProgressiveKMeans
 from utils.optimizer import get_optimizer, get_model
 import numpy as np
 from sklearn.cluster import KMeans
-import wandb
-from spherecluster import VonMisesFisherMixture
+# from spherecluster import VonMisesFisherMixture
 
 def run(args):
     # dataset loader
@@ -28,58 +27,29 @@ def run(args):
 
     # model
     model, tokenizer = get_model(args)
-    
-    model = SCCLModel(model, tokenizer, alpha=args.alpha) 
+
+    theme_utterance_loader = dataloader.dstc12_theme_loader(args)
+    cluster_centers = get_kmeans_centers(model, tokenizer, theme_utterance_loader, args.n_clusters, args.max_length, args)
+    model = SCCLModel(model, tokenizer, cluster_centers,alpha=args.alpha)
     model = model.to(args.device)
     model.train()
 
     # optimizer 
     optimizer = get_optimizer(model, args)
-    # cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++')
-    cluster_model = VonMisesFisherMixture(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++', posterior_type='hard')
+    cluster_model = KMeans(n_clusters=args.n_clusters, random_state=args.seed, n_init=args.n_init, init='k-means++')
     trainer = SCCLvTrainer(model, tokenizer, optimizer, cluster_model, args)
     
-    # wandb 초기화 - 하나의 run에서 모든 stage 기록
-    config = {
-        "n_clusters": args.n_clusters,
-        "alpha": args.alpha,
-        "n_init": args.n_init,
-        "pre_train_epoch": args.pre_train_epoch,
-        "inter_train_epoch": args.inter_train_epoch,
-        "joint_train_epoch": args.joint_train_epoch,
-        "model_name": args.model_name,
-        "temperature": args.temperature,
-        "seed": args.seed,
-        "batch_size": args.batch_size,
-        "learning_rate": args.lr,
-        "total_epochs": args.pre_train_epoch + args.inter_train_epoch + args.joint_train_epoch
-    }
-    wandb.init(project="sccl-training", name="sccl_three_stage_training", config=config)
+    # 첫 번째 단계: pretrain
+    all_conservation_loader = dataloader.dstc12_all_loader(args)
+    trainer.train(TrainType.pre_train, all_conservation_loader)
     
-    # 단계별 훈련 및 전역 step 관리
-    global_step = 0
-    
-    # 첫 번째 단계: 사전 훈련
-    dstc12_loader = dataloader.dstc12_loader(args)
-    eval_loader = dataloader.unshuffle_dstc12_loader(args)
-    global_step = trainer.train(TrainType.pre_train, dstc12_loader, global_step=global_step)
-    
-    # 두 번째 단계: 양성 쌍 기반 훈련
-    loader_positive = dataloader.dstc12_loader_with_positive(args)
-    global_step = trainer.train(TrainType.inter_train, loader_positive, global_step=global_step)
-    
-    # 세 번째 단계: 양성/음성 쌍 기반 훈련
-    loader_negative = dataloader.dstc12_loader_with_negative(args)
-    global_step = trainer.train(TrainType.joint_train, loader_negative, global_step=global_step)
+    # 두 번째 단계: jointtrain
+    all_conservation_loader = dataloader.dstc12_theme_loader(args)
+    trainer.train(TrainType.joint_train, all_conservation_loader)
+
     cluster_label_map = trainer.predict(args.result_file)
-    metrics = trainer.evaluate(args.dataset_file, args.result_file)
-    
-    # 최종 평가 결과 로깅
-    wandb.log({f"final_{k}": v for k, v in metrics.items()})
-    
-    # wandb 세션 종료
-    wandb.finish()
-    
+    trainer.evaluate(args.dataset_file, args.result_file)
+
     return cluster_label_map
 
 def get_args(argv):
@@ -97,21 +67,20 @@ def get_args(argv):
     parser.add_argument('--lr', type=float, default=5e-7, help="")
     parser.add_argument('--lr-scale', type=int, default=10)
     parser.add_argument('--pre-train-epoch', type=int, default=3)
-    parser.add_argument('--inter-train-epoch', type=int, default=3)
     parser.add_argument('--joint-train-epoch', type=int, default=3)
     
     # contrastive learning
     parser.add_argument('--temperature', type=float, default=0.5, help="temperature required by contrastive loss")
-    parser.add_argument('--negative-alpha', type=float, default=5.0, help="negative alpha required by contrastive loss")
+    parser.add_argument('--alpha', type=float, default=1, help="weight for clustering loss")
     
     # Clustering
     parser.add_argument('--n-clusters', type=int, default=14)
-    parser.add_argument('--alpha', type=float, default=1.0)
+    parser.add_argument('--eta', type=float, default=1.0)
     parser.add_argument('--n-init', type=int, default=100, help="Kmeans++의 초기화 횟수")
     
     # evaluation
     parser.add_argument('--print-freq', type=float, default=1, help="loss 출력 간격 (iter 기준)")
-    parser.add_argument('--eval-interval', type=int, default=1, help="eval 결과를 출력할 간격 (epoch 기준)")
+    parser.add_argument('--eval-freq', type=int, default=1, help="eval 결과를 출력할 간격 (iter 기준)")
     
     args = parser.parse_args(argv)
 
@@ -126,7 +95,8 @@ if __name__ == '__main__':
     cluster_label_map = run(args)
     cluster_label_map = {k: int(v) for k, v in cluster_label_map.items()}
 
-    # 저장할 파일 경로 생성 (result_file 경로에서 확장자 변경)
+    # 클러스터 라벨 맵을 JSON 형식으로 저장
+    # {"utterance": cluster_idx} ex) {"Hello": 0, "How are you?": 1}
     json_output_path = "./cluster_label_map.json"
 
     # JSON 파일로 저장

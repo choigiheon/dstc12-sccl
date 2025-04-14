@@ -16,7 +16,6 @@ from sklearn.cluster import KMeans
 from dstc12.prompts import LABEL_CLUSTERS_PROMPT
 from dstc12.utils import get_llm, DotAllRegexParser
 import numpy as np
-import wandb
 
 
 def parse_args():
@@ -62,18 +61,6 @@ def main(utterances, linking_preferences, embedding_model_name, llm_name, n_clus
 if __name__ == '__main__':
     args = parse_args()
 
-    # wandb 초기화 및 파라미터 로깅
-    wandb.init(project="theme-detection", name="theme-detection-run")
-    wandb.config.update({
-        "dataset_file": args.dataset_file,
-        "result_file": args.result_file,
-        "n_clusters": args.n_clusters,
-        "random_state": args.random_state,
-        "llm_name": args.llm_name,
-        "cluster_label_map": args.cluster_label_map,
-        "device": args.device
-    })
-
     if not os.getenv("HUGGINGFACEHUB_API_TOKEN"):
         os.environ["HUGGINGFACEHUB_API_TOKEN"] = getpass.getpass("Enter your token: ")
 
@@ -101,6 +88,3 @@ if __name__ == '__main__':
     with open(args.result_file, 'w') as result_out:
         for dialogue in dataset_predicted:
             print(json.dumps(dialogue), file=result_out)
-    
-    # wandb 세션 종료
-    wandb.finish()

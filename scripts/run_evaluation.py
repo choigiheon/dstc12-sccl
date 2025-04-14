@@ -7,7 +7,6 @@ import os
 
 import getpass
 from langchain_huggingface import HuggingFaceEmbeddings
-import wandb
 
 from dstc12.eval import (
     acc,
@@ -72,14 +71,6 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
 
-    # wandb 초기화
-    wandb.init(project="theme-detection-evaluation", name="evaluation-run")
-    wandb.config.update({
-        "ground_truth_file": args.ground_truth_file,
-        "predictions_file": args.predictions_file,
-        "embedding_model_name": args.embedding_model_name
-    })
-
     if not os.getenv("HUGGINGFACEHUB_API_TOKEN"):
         os.environ["HUGGINGFACEHUB_API_TOKEN"] = getpass.getpass("Enter your token: ")
 
@@ -101,10 +92,5 @@ if __name__ == '__main__':
             label_predictions.append(utterance_pred['theme_label_predicted'])
     metrics = main((label1_references, label2_references), label_predictions, args.embedding_model_name)
     
-    # 메트릭 출력 및 wandb에 로깅
     for metric, value in metrics.items():
         print(f'{metric}: {value:.3f}')
-        wandb.log({metric: value})
-    
-    # wandb 세션 종료
-    wandb.finish()

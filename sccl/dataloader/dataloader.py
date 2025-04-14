@@ -93,7 +93,7 @@ def unshuffle_dstc12_loader(args):
     return train_loader
     
 
-def dstc12_loader(args):
+def dstc12_theme_loader(args):
     with open(args.dataset_file) as f:
         dataset = [json.loads(line) for line in f]
     themed_utterances = set([])
@@ -104,6 +104,18 @@ def dstc12_loader(args):
     
     train_dataset = SimCSEAugSamples(list(themed_utterances))
     train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
+    return train_loader
+
+def dstc12_all_loader(args):
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+    all_utterances = set([])
+    for dialogue in dataset:
+        for turn in dialogue['turns']:
+            all_utterances.add(turn['utterance'])
+
+    train_dataset = SimCSEAugSamples(list(all_utterances))
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
     return train_loader
 
 def dstc12_loader_with_negative(args):

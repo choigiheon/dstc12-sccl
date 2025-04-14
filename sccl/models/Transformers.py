@@ -16,7 +16,7 @@ from copy import deepcopy
 
 
 class SCCLModel(nn.Module):
-    def __init__(self, model, tokenizer, alpha=1.0):
+    def __init__(self, model, tokenizer, cluster_centers, alpha=1.0):
         super(SCCLModel, self).__init__()
         
         self.tokenizer = tokenizer
@@ -30,36 +30,21 @@ class SCCLModel(nn.Module):
             nn.Linear(self.emb_size, self.emb_size),
             nn.ReLU(inplace=True),
             nn.Linear(self.emb_size, 128))
-        # init 
-        self.contrast_head.apply(self.init_weights)
-      
-    def init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            nn.init.xavier_uniform_(module.weight)
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
+
+        # Instance-CL head
+        self.contrast_head = nn.Sequential(
+            nn.Linear(self.emb_size, self.emb_size),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.emb_size, 128))
+
+        # Clustering head
+        initial_cluster_centers = torch.tensor(
+            cluster_centers, dtype=torch.float, requires_grad=True)
+        self.cluster_centers = Parameter(initial_cluster_centers)
     
     def forward(self, input_ids, attention_mask, task_type="evaluate"):
         if task_type == "evaluate":
             return self.get_mean_embeddings(input_ids, attention_mask)
-        
-        elif task_type == TrainType.joint_train:
-            input_ids_1, input_ids_2, input_ids_3, input_ids_4 = torch.unbind(input_ids, dim=1)
-            attention_mask_1, attention_mask_2, attention_mask_3, attention_mask_4 = torch.unbind(attention_mask, dim=1) 
-            
-            mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
-            mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
-            mean_output_3 = self.get_mean_embeddings(input_ids_3, attention_mask_3)
-            mean_output_4 = self.get_mean_embeddings(input_ids_4, attention_mask_4)
-            return mean_output_1, mean_output_2, mean_output_3, mean_output_4
-        
-        elif task_type == TrainType.inter_train:
-            input_ids_1, input_ids_2 = torch.unbind(input_ids, dim=1)
-            attention_mask_1, attention_mask_2 = torch.unbind(attention_mask, dim=1) 
-            
-            mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
-            mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
-            return mean_output_1, mean_output_2
         
         elif task_type == TrainType.pre_train:
             input_ids_1, input_ids_2 = torch.unbind(input_ids, dim=1) # input_ids_1 == input_ids_2
@@ -68,15 +53,14 @@ class SCCLModel(nn.Module):
             mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
             mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
             return mean_output_1, mean_output_2
-        
-        elif task_type == "explicit":
-            input_ids_1, input_ids_2, input_ids_3 = torch.unbind(input_ids, dim=1)
-            attention_mask_1, attention_mask_2, attention_mask_3 = torch.unbind(attention_mask, dim=1) 
-            
+
+        elif task_type == TrainType.joint_train:
+            input_ids_1, input_ids_2 = torch.unbind(input_ids, dim=1)
+            attention_mask_1, attention_mask_2 = torch.unbind(attention_mask, dim=1)
+
             mean_output_1 = self.get_mean_embeddings(input_ids_1, attention_mask_1)
             mean_output_2 = self.get_mean_embeddings(input_ids_2, attention_mask_2)
-            mean_output_3 = self.get_mean_embeddings(input_ids_3, attention_mask_3)
-            return mean_output_1, mean_output_2, mean_output_3
+            return mean_output_1, mean_output_2
         
         else:
             raise Exception("TRANSFORMER ENCODING TYPE ERROR! OPTIONS: [EVALUATE, SIMCSE, EXPLICIT]")
@@ -112,11 +96,18 @@ class SCCLModel(nn.Module):
         else: 
             return feat1
 
+    def get_cluster_prob(self, embeddings):
+        norm_squared = torch.sum((embeddings.unsqueeze(1) - self.cluster_centers) ** 2, 2)
+        numerator = 1.0 / (1.0 + (norm_squared / self.alpha))
+        power = float(self.alpha + 1) / 2
+        numerator = numerator ** power
+        return numerator / torch.sum(numerator, dim=1, keepdim=True)
 
-    def contrast_logits_negative(self, embd1_1, embd1_2, embd2_1, embd2_2):
-        emb1_1 = F.normalize(self.contrast_head(embd1_1), dim=1)
-        emb1_2 = F.normalize(self.contrast_head(embd1_2), dim=1)
-        emb2_1 = F.normalize(self.contrast_head(embd2_1), dim=1)
-        emb2_2 = F.normalize(self.contrast_head(embd2_2), dim=1)
-        
-        return emb1_1, emb1_2, emb2_1, emb2_2
+
+    # def contrast_logits_negative(self, embd1_1, embd1_2, embd2_1, embd2_2):
+    #     emb1_1 = F.normalize(self.contrast_head(embd1_1), dim=1)
+    #     emb1_2 = F.normalize(self.contrast_head(embd1_2), dim=1)
+    #     emb2_1 = F.normalize(self.contrast_head(embd2_1), dim=1)
+    #     emb2_2 = F.normalize(self.contrast_head(embd2_2), dim=1)
+    #
+    #     return emb1_1, emb1_2, emb2_1, emb2_2
