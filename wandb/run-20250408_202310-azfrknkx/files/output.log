@@ -1,0 +1,194 @@
+---- 41 prediction batches ----
+임베딩 추출: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 41/41 [00:03<00:00, 11.93it/s]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 1632개
+/opt/miniconda3/envs/dstc12/lib/python3.11/site-packages/langchain/llms/__init__.py:549: LangChainDeprecationWarning: Importing LLMs from langchain is deprecated. Importing from langchain will no longer be supported as of langchain==0.2.0. Please import from langchain-community instead:
+
+`from langchain_community.llms import HuggingFacePipeline`.
+
+To install langchain-community run `pip install -U langchain-community`.
+  warnings.warn(
+평가 진행 중...
+acc: 0.557
+nmi: 0.592
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.052
+Initial metrics: {'acc': 0.5569155446756426, 'nmi': 0.592364534744639, 'rouge_1': 0.0, 'rouge_2': 0.0, 'rouge_l': 0.0, 'cosine_similarity': 0.052163523}
+  0%|                                                                                                                                                                                                                 | 0/1 [00:00<?, ?it/s]
+에포크 1/1, 배치 1
+, loss: 3.5120577812194824
+, pos_similarity: 0.9268621206283569
+, other_similarity: 0.493020236492157
+에포크 1/1, 배치 2
+, loss: 3.4460113048553467
+, pos_similarity: 0.9210368990898132
+, other_similarity: 0.452420175075531
+에포크 1/1, 배치 3
+, loss: 3.4581825733184814
+, pos_similarity: 0.9264750480651855
+, other_similarity: 0.4647231101989746
+에포크 1/1, 배치 4
+, loss: 3.5089516639709473
+, pos_similarity: 0.9278205633163452
+, other_similarity: 0.49245741963386536
+에포크 1/1, 배치 5
+, loss: 3.390413999557495
+, pos_similarity: 0.9259092211723328
+, other_similarity: 0.4280260503292084
+에포크 1/1, 배치 6
+, loss: 3.4070792198181152
+, pos_similarity: 0.9212362170219421
+, other_similarity: 0.43322622776031494
+에포크 1/1, 배치 7
+, loss: 3.4559326171875
+, pos_similarity: 0.925599217414856
+, other_similarity: 0.4629969000816345
+에포크 1/1, 배치 8
+, loss: 3.458611249923706
+, pos_similarity: 0.9286164045333862
+, other_similarity: 0.46797308325767517
+에포크 1/1, 배치 9
+, loss: 3.4367363452911377
+, pos_similarity: 0.9211406707763672
+, other_similarity: 0.4481757581233978
+에포크 1/1, 배치 10
+, loss: 3.472590684890747
+, pos_similarity: 0.924688994884491
+, other_similarity: 0.47027572989463806
+에포크 1/1, 배치 11
+, loss: 3.4136295318603516
+, pos_similarity: 0.9231550097465515
+, other_similarity: 0.4351252615451813
+에포크 1/1, 배치 12
+, loss: 3.3836586475372314
+, pos_similarity: 0.9285091161727905
+, other_similarity: 0.4287688434123993
+에포크 1/1, 배치 13
+, loss: 3.419412136077881
+, pos_similarity: 0.9219242334365845
+, other_similarity: 0.439908891916275
+에포크 1/1, 배치 14
+, loss: 3.4333553314208984
+, pos_similarity: 0.9138088226318359
+, other_similarity: 0.43935030698776245
+에포크 1/1, 배치 15
+, loss: 3.421323299407959
+, pos_similarity: 0.9214428663253784
+, other_similarity: 0.44033271074295044
+에포크 1/1, 배치 16
+, loss: 3.4349722862243652
+, pos_similarity: 0.9206795692443848
+, other_similarity: 0.44388335943222046
+에포크 1/1, 배치 17
+, loss: 3.399390459060669
+, pos_similarity: 0.9195095300674438
+, other_similarity: 0.4280795156955719
+에포크 1/1, 배치 18
+, loss: 3.4153952598571777
+, pos_similarity: 0.9245074391365051
+, other_similarity: 0.4393681287765503
+에포크 1/1, 배치 19
+, loss: 3.4080557823181152
+, pos_similarity: 0.9277459979057312
+, other_similarity: 0.43886151909828186
+에포크 1/1, 배치 20
+, loss: 3.412196397781372
+, pos_similarity: 0.9217492938041687
+, other_similarity: 0.4351821839809418
+에포크 1/1, 배치 21
+, loss: 3.371119976043701
+, pos_similarity: 0.9221733212471008
+, other_similarity: 0.41530025005340576
+에포크 1/1, 배치 22
+, loss: 3.381094455718994
+, pos_similarity: 0.9166678190231323
+, other_similarity: 0.4157906174659729
+에포크 1/1, 배치 23
+, loss: 3.3911964893341064
+, pos_similarity: 0.9169109463691711
+, other_similarity: 0.4213937222957611
+에포크 1/1, 배치 24
+, loss: 3.3985488414764404
+, pos_similarity: 0.9217621684074402
+, other_similarity: 0.4285353422164917
+에포크 1/1, 배치 25
+, loss: 3.371333360671997
+, pos_similarity: 0.9226492047309875
+, other_similarity: 0.4154100716114044
+에포크 1/1, 배치 26
+, loss: 3.386622667312622
+, pos_similarity: 0.9227409362792969
+, other_similarity: 0.4239014685153961
+에포크 1/1, 배치 27
+, loss: 3.3751449584960938
+, pos_similarity: 0.919097900390625
+, other_similarity: 0.41484305262565613
+에포크 1/1, 배치 28
+, loss: 3.3802075386047363
+, pos_similarity: 0.9130824208259583
+, other_similarity: 0.411415159702301
+에포크 1/1, 배치 29
+, loss: 3.3239102363586426
+, pos_similarity: 0.9115591049194336
+, other_similarity: 0.38141006231307983
+에포크 1/1, 배치 30
+, loss: 3.3784432411193848
+, pos_similarity: 0.9169570803642273
+, other_similarity: 0.41465532779693604
+에포크 1/1, 배치 31
+, loss: 3.3677890300750732
+, pos_similarity: 0.9179427027702332
+, other_similarity: 0.4086175560951233
+에포크 1/1, 배치 32
+, loss: 3.3476128578186035
+, pos_similarity: 0.9148973226547241
+, other_similarity: 0.39718812704086304
+에포크 1/1, 배치 33
+, loss: 3.318169355392456
+, pos_similarity: 0.9153816103935242
+, other_similarity: 0.38054439425468445
+에포크 1/1, 배치 34
+, loss: 3.321530818939209
+, pos_similarity: 0.9222375750541687
+, other_similarity: 0.3893791735172272
+에포크 1/1, 배치 35
+, loss: 3.3291690349578857
+, pos_similarity: 0.9165583848953247
+, other_similarity: 0.3867732882499695
+에포크 1/1, 배치 36
+, loss: 3.333765745162964
+, pos_similarity: 0.9041168093681335
+, other_similarity: 0.37523308396339417
+에포크 1/1, 배치 37
+, loss: 3.319566249847412
+, pos_similarity: 0.9172913432121277
+, other_similarity: 0.38259804248809814
+에포크 1/1, 배치 38
+, loss: 3.3394265174865723
+, pos_similarity: 0.917040228843689
+, other_similarity: 0.3917669653892517
+에포크 1/1, 배치 39
+, loss: 3.340174913406372
+, pos_similarity: 0.913432240486145
+, other_similarity: 0.3919338285923004
+에포크 1/1, 배치 40
+, loss: 3.302565097808838
+, pos_similarity: 0.9198781847953796
+, other_similarity: 0.3748033940792084
+에포크 1/1, 배치 41
+, loss: 3.1189775466918945
+, pos_similarity: 0.9140077233314514
+, other_similarity: 0.3916775584220886
+---- 41 prediction batches ----
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:58<00:00, 58.07s/it]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 1632개
+평가 진행 중...
+acc: 0.523
+nmi: 0.577
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.047

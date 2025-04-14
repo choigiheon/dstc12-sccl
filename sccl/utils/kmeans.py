@@ -157,6 +157,7 @@ class ProgressiveKMeans:
         return torch.tensor(high_score_centers, device=self.args.device)
         
     def get_hsc(self):
+        assert self.high_score_centers is not None
         return self.high_score_centers
     
     def get_clusters(self):

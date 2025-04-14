@@ -91,5 +91,6 @@ if __name__ == '__main__':
             label2_references.append(utterance_gt['theme_label']['label_2'])
             label_predictions.append(utterance_pred['theme_label_predicted'])
     metrics = main((label1_references, label2_references), label_predictions, args.embedding_model_name)
+    
     for metric, value in metrics.items():
         print(f'{metric}: {value:.3f}')

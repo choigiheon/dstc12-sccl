@@ -1,0 +1,64 @@
+Train Type:  pre_train
+
+=1/1=Epochs/Batches
+---- 1 prediction batches ----
+임베딩 추출: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:03<00:00,  3.18s/it]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 25개
+/opt/miniconda3/envs/dstc12/lib/python3.11/site-packages/langchain/llms/__init__.py:549: LangChainDeprecationWarning: Importing LLMs from langchain is deprecated. Importing from langchain will no longer be supported as of langchain==0.2.0. Please import from langchain-community instead:
+
+`from langchain_community.llms import HuggingFacePipeline`.
+
+To install langchain-community run `pip install -U langchain-community`.
+  warnings.warn(
+평가 진행 중...
+acc: 0.760
+nmi: 0.923
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.060
+Initial metrics: {'acc': 0.76, 'nmi': 0.9232786281258828, 'rouge_1': 0.0, 'rouge_2': 0.0, 'rouge_l': 0.0, 'cosine_similarity': 0.06002061}
+임베딩 추출: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:02<00:00,  2.91s/it]it/s]
+에포크 1/1, 배치 1
+, loss: 2.9940903186798096
+, pos_similarity: 0.92167067527771
+, other_similarity: 0.46668681502342224
+---- 1 prediction batches ----
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:08<00:00,  8.88s/it]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 25개
+평가 진행 중...
+acc: 0.760
+nmi: 0.923
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.060
+Train Type:  inter_train
+
+=1/0=Epochs/Batches
+---- 1 prediction batches ----
+임베딩 추출: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:03<00:00,  3.54s/it]
+클러스터링 완료: 16개 클러스터
+theme_label이 있는 발화문: 25개
+평가 진행 중...
+acc: 0.760
+nmi: 0.923
+rouge_1: 0.000
+rouge_2: 0.000
+rouge_l: 0.000
+cosine_similarity: 0.060
+Initial metrics: {'acc': 0.76, 'nmi': 0.9232786281258828, 'rouge_1': 0.0, 'rouge_2': 0.0, 'rouge_l': 0.0, 'cosine_similarity': 0.06002061}
+  0%|                                                                                                                                                                                                                 | 0/1 [00:03<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/giheon/Development/dstc12/sccl/cluster.py", line 123, in <module>
+    cluster_label_map = run(args)
+                        ^^^^^^^^^
+  File "/Users/giheon/Development/dstc12/sccl/cluster.py", line 67, in run
+    global_step = trainer.train(TrainType.inter_train, loader_positive, eval_loader, global_step=global_step, current_stage="inter_train")
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/giheon/Development/dstc12/sccl/training.py", line 189, in train
+    f"{current_stage}_epoch_loss": epoch_loss / len(train_loader)
+                                   ~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~
+ZeroDivisionError: division by zero

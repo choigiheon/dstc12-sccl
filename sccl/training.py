@@ -9,38 +9,37 @@ import os
 import time
 import numpy as np
 from sklearn import cluster
+from sklearn.preprocessing import normalize
 import json
 from tqdm import tqdm
 from utils.logger import statistics_log
 from utils.metric import Confusion
 from dataloader.dataloader import unshuffle_dstc12_loader
+import wandb
 
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from learner.cluster_utils import target_distribution
-from learner.contrastive_utils import PairConLoss
+from learner.contrastive_utils import PairConLossPositive, PairConLossNegative
 
 class TrainType:
-    pre_train = "CL"
-    joint_train = "SCCL"
+    pre_train = "pre_train"
+    joint_train = "joint_train"
 
 class SCCLvTrainer(nn.Module):
-    def __init__(self, model, tokenizer, optimizer, train_loader, cluster_model, args):
+    def __init__(self, model, tokenizer, optimizer, cluster_model, args):
         super(SCCLvTrainer, self).__init__()
         self.model = model
         self.tokenizer = tokenizer
         self.optimizer = optimizer
-        self.train_loader = train_loader
         self.args = args
-        self.eta = self.args.eta
         self.cluster_model = cluster_model
-        
+        self.contrast_loss_positive = PairConLossPositive(temperature=self.args.temperature)
         self.cluster_loss = nn.KLDivLoss(size_average=False)
-        self.contrast_loss = PairConLoss(temperature=self.args.temperature)
-        
-        self.gstep = 0
-        print(f"*****Intialize SCCLv, temp:{self.args.temperature}, eta:{self.args.eta}\n")
+        # self.contrast_loss_negative = PairConLossNegative(temperature=self.args.temperature, negative_alpha=self.args.negative_alpha)
+
+        print(f"*****Intialize SCCLv, temp:{self.args.temperature}\n")
         
     def get_batch_token(self, text):
         token_feat = self.tokenizer.batch_encode_plus(
@@ -53,117 +52,103 @@ class SCCLvTrainer(nn.Module):
         return token_feat
         
 
-    def prepare_transformer_input(self, batch, args):
-        if len(batch) == 4:
-            text1, text2, text3 = batch['text'], batch['augmentation_1'], batch['augmentation_2']
-            feat1 = self.get_batch_token(text1)
-            feat2 = self.get_batch_token(text2)
-            feat3 = self.get_batch_token(text3)
-
-            input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1), feat3['input_ids'].unsqueeze(1)], dim=1)
-            attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1), feat3['attention_mask'].unsqueeze(1)], dim=1)
-            
-        elif len(batch) == 1: # simcse Augmentation
+    def prepare_transformer_input(self, batch, train_type):
+        if train_type == TrainType.joint_train:
             text = batch['text']
             feat1 = self.get_batch_token(text)
             feat2 = feat1.copy()
-            
+            input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1)], dim=1)
+            attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1)], dim=1)
+        elif train_type == TrainType.pre_train:
+            text = batch['text']
+            feat1 = self.get_batch_token(text)
+            feat2 = feat1.copy()
             input_ids = torch.cat([feat1['input_ids'].unsqueeze(1), feat2['input_ids'].unsqueeze(1)], dim=1)
             attention_mask = torch.cat([feat1['attention_mask'].unsqueeze(1), feat2['attention_mask'].unsqueeze(1)], dim=1)
             
         return input_ids.to(self.args.device), attention_mask.to(self.args.device)
-        
-        
-    def train_step_simcse(self, input_ids, attention_mask, objective):
-        
-        embd1, embd2 = self.model(input_ids, attention_mask, task_type="simcse")
+
+
+    def train_step_pre(self, input_ids, attention_mask):
+        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.pre_train)
 
         # Instance-CL loss
         feat1, feat2 = self.model.contrast_logits(embd1, embd2)
-        losses = self.contrast_loss(feat1, feat2)
-        loss = self.eta * losses["loss"]
-        
-        # Clustering loss
-        if objective == TrainType.joint_train: # SCCL
-            output = self.model.get_cluster_prob(embd1)
-            target = target_distribution(output).detach()
-            
-            cluster_loss = self.cluster_loss((output+1e-08).log(), target)/output.shape[0]
-            loss += self.eta*cluster_loss
-            losses["cluster_loss"] = cluster_loss.item()
+        losses = self.contrast_loss_positive(feat1, feat2)
+        loss = losses["loss"]
 
         loss.backward()
         self.optimizer.step()
         self.optimizer.zero_grad()
         return losses
-    
-    
-    def train_step_explicit(self, input_ids, attention_mask):
-        
-        embd1, embd2, embd3 = self.model(input_ids, attention_mask, task_type="explicit")
+
+
+    def train_step_joint(self, input_ids, attention_mask):
+
+        embd1, embd2 = self.model(input_ids, attention_mask, task_type=TrainType.joint_train)
 
         # Instance-CL loss
-        feat1, feat2 = self.model.contrast_logits(embd2, embd3)
-        losses = self.contrast_loss(feat1, feat2)
-        loss = self.eta * losses["loss"]
+        feat1, feat2 = self.model.contrast_logits(embd1, embd2)
+        losses = self.contrast_loss_positive(feat1, feat2)
+        loss = losses["loss"]
 
         # Clustering loss
-        if self.args.objective == TrainType.joint_train:
-            output = self.model.get_cluster_prob(embd1)
-            target = target_distribution(output).detach()
-            
-            cluster_loss = self.cluster_loss((output+1e-08).log(), target)/output.shape[0]
-            loss += self.eta*cluster_loss
-            losses["cluster_loss"] = cluster_loss.item()
+        output = self.model.get_cluster_prob(embd1)
+        target = target_distribution(output).detach()
+
+        cluster_loss = self.cluster_loss((output + 1e-08).log(), target) / output.shape[0]
+        loss += self.args.eta * cluster_loss
+        losses["cluster_loss"] = self.args.eta * cluster_loss.item()
 
         loss.backward()
         self.optimizer.step()
         self.optimizer.zero_grad()
         return losses
     
-    def train(self, train_type):
-        max_epoch = self.args.joint_train_epoch if train_type == TrainType.joint_train else self.args.pre_train_epoch
-        print("Train Type: ", "pre_train" if train_type == TrainType.pre_train else "joint_train")
-        print('\n={}/{}=Epochs/Batches'.format(max_epoch, len(self.train_loader)))
-        self.model.train()
+    def train(self, train_type, train_loader):
+        max_epoch = 0
+        if train_type == TrainType.pre_train:
+            print("Train Type: ", "pre_train")
+            max_epoch = self.args.pre_train_epoch
+        elif train_type == TrainType.joint_train:
+            print("Train Type: ", "joint_train")
+            max_epoch = self.args.joint_train_epoch
+        print('\n={}/{}=Epochs/Batches_per_Epoch'.format(max_epoch, len(train_loader)))
         
         # For reference
         self.predict(self.args.result_file)
         metrics = self.evaluate(self.args.dataset_file, self.args.result_file)
-        print(f"Initial metrics: {metrics}")
-        
-        for epoch in tqdm(np.arange(max_epoch)):
-            
-            # 각 에포크마다 전체 데이터셋을 순회
-            batch_count = 0
-            for batch in tqdm(self.train_loader, desc=f"에포크 {epoch+1}/{max_epoch}"):
-                input_ids, attention_mask = self.prepare_transformer_input(batch, self.args)
-                
-                losses = self.train_step_simcse(input_ids, attention_mask, objective=TrainType.joint_train) if train_type == TrainType.joint_train else self.train_step_simcse(input_ids, attention_mask, objective=TrainType.pre_train)
-                
-                batch_count += 1
-                
+        print(f"{train_type} 훈련 전: Initial metrics: {metrics}")
+
+        iteration_count = 0
+        for epoch in np.arange(max_epoch):
+
+            for batch in train_loader:
+                self.model.train()
+                input_ids, attention_mask = self.prepare_transformer_input(batch, train_type)
+
+                if train_type == TrainType.pre_train:
+                    losses = self.train_step_pre(input_ids, attention_mask)
+                elif train_type == TrainType.joint_train:
+                    losses = self.train_step_joint(input_ids, attention_mask)
+
                 # 손실 출력
-                if (self.args.print_freq > 0) and ((batch_count % self.args.print_freq == 0)):
-                    print(f"에포크 {epoch+1}/{max_epoch}, 배치 {batch_count}, loss: {losses['loss']}, pos_mean: {losses['pos_mean']}, neg_mean: {losses['neg_mean']}")
+                if ((iteration_count % self.args.print_freq == 0)):
+                    print(f"에포크 {epoch+1}/{max_epoch}, 배치 {iteration_count}, loss: {losses['loss']}, pos_similarity: {losses['pos_similarity']}, other_similarity: {losses['other_similarity']}")
+                    
                     if train_type == TrainType.joint_train:
                         print(f"cluster_loss: {losses['cluster_loss']}")
-            
-            if epoch % self.args.eval_interval == 0:
-                self.predict(self.args.result_file)
-                self.evaluate(self.args.dataset_file, self.args.result_file)
-                self.model.train()
-            
-            # 에포크가 끝날 때마다 클러스터 업데이트 수행
-            if (epoch % self.args.kmeans_interval == 0):
-                all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
-                self.cluster_model.update(all_embeddings)
                 
-        # 마지막 배치에서 클러스터 업데이트
-        all_embeddings, all_utterances = self.get_embeddings(self.train_loader)
-        self.cluster_model.update(all_embeddings)
+                if iteration_count % self.args.eval_freq == 0:
+                    self.predict(self.args.result_file)
+                    self.evaluate(self.args.dataset_file, self.args.result_file)
+                    self.model.train()
 
-        return None   
+                iteration_count += 1
+
+            torch.save(self.model.state_dict(), f"model_{train_type}.pt")
+
+        return None
     
     def predict(self, result_file):
         """
@@ -191,9 +176,8 @@ class SCCLvTrainer(nn.Module):
         
         # K-means 클러스터링 수행
         all_embeddings, all_utterances = self.get_embeddings(dataloader)
-        cluster_labels, high_score_centers = self.cluster_model.predict(all_embeddings) 
-        
-        print(f"클러스터링 완료: {self.args.n_clusters}개 클러스터")
+        self.cluster_model.fit(all_embeddings)
+        cluster_labels = self.cluster_model.predict(all_embeddings)
         
         # 각 발화문에 클러스터 라벨 매핑
         cluster_label_map = {utterance: str(label) for utterance, label in zip(all_utterances, cluster_labels)}
@@ -208,8 +192,6 @@ class SCCLvTrainer(nn.Module):
             for turn in dialogue['turns']:
                 if turn.get('theme_label') is not None:
                     themed_utterances.add(turn['utterance'])
-        
-        print(f"theme_label이 있는 발화문: {len(themed_utterances)}개")
         
         # 예측 결과를 원본 데이터셋에 추가
         dataset_predicted = dataset.copy()
@@ -230,25 +212,27 @@ class SCCLvTrainer(nn.Module):
                 print(json.dumps(dialogue), file=result_out)
                 
         return cluster_label_map
-                
+
     def get_embeddings(self, dataloader):
         all_embeddings = []
         all_utterances = []
-        
+
         with torch.no_grad():
-            for i, batch in tqdm(enumerate(dataloader), total=len(dataloader), desc="임베딩 추출"):
+            print("임베딩 추출 중...")
+            for i, batch in tqdm(enumerate(dataloader), total=len(dataloader)):
                 text = batch['text']
                 feat = self.get_batch_token(text)
-                embeddings = self.model(feat['input_ids'].to(self.args.device), 
-                                       feat['attention_mask'].to(self.args.device), 
+                embeddings = self.model(feat['input_ids'].to(self.args.device),
+                                       feat['attention_mask'].to(self.args.device),
                                        task_type="evaluate")
-                
+                # embeddings = self.model.contrast_embed(feat['input_ids'].to(self.args.device),
+                #                                      feat['attention_mask'].to(self.args.device))
+
                 # 임베딩과 해당 발화문 저장
                 all_embeddings.append(embeddings.detach().cpu())
                 all_utterances.extend(text)
-        
-        # 모든 임베딩 결합
-        all_embeddings = torch.cat(all_embeddings, dim=0).numpy()
+
+        all_embeddings = torch.cat(all_embeddings, dim=0)
         return all_embeddings, all_utterances
 
     def evaluate(self, dataset_file, result_file):
@@ -322,11 +306,11 @@ class SCCLvTrainer(nn.Module):
             'rouge_l': avg_rouge['rougeL'].fmeasure,
             'cosine_similarity': avg_cosine_similarity,
         }
-        
-        for metric, value in metrics.items():
-            print(f'{metric}: {value:.3f}')
+
+        print(f'{metrics}')
             
         return metrics
 
     def set_optimizer(self, optimizer):
         self.optimizer = optimizer
+        

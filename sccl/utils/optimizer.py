@@ -28,7 +28,7 @@ def get_optimizer(model, args):
         {'params':model.cluster_centers, 'lr': args.lr*args.lr_scale}
     ], lr=args.lr)
     
-    print(optimizer)
+    # print(optimizer)
     return optimizer 
     
 

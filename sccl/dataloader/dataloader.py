@@ -10,6 +10,7 @@ import json
 import pandas as pd
 import torch.utils.data as util_data
 from torch.utils.data import Dataset
+from loguru import logger
 
 class SimCSEAugSamples(Dataset):
     def __init__(self, train_x):
@@ -21,6 +22,16 @@ class SimCSEAugSamples(Dataset):
     def __getitem__(self, idx):
         return {'text': self.train_x[idx]}
 
+class SimCSEAugSamplesPairs(Dataset):
+    def __init__(self, train_x1, train_x2):
+        self.train_x1 = train_x1
+        self.train_x2 = train_x2
+
+    def __len__(self):
+        return len(self.train_x1)
+    
+    def __getitem__(self, idx):
+        return {'text_1': self.train_x1[idx], 'text_2': self.train_x2[idx]  }
     
 class ExplitAugSamples(Dataset):
     def __init__(self, train_x, train_x1, train_x2, train_y):
@@ -82,7 +93,7 @@ def unshuffle_dstc12_loader(args):
     return train_loader
     
 
-def dstc12_loader(args):
+def dstc12_theme_loader(args):
     with open(args.dataset_file) as f:
         dataset = [json.loads(line) for line in f]
     themed_utterances = set([])
@@ -92,5 +103,68 @@ def dstc12_loader(args):
                 themed_utterances.add(turn['utterance'])
     
     train_dataset = SimCSEAugSamples(list(themed_utterances))
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
+    return train_loader
+
+def dstc12_all_loader(args):
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+    all_utterances = set([])
+    for dialogue in dataset:
+        for turn in dialogue['turns']:
+            all_utterances.add(turn['utterance'])
+
+    train_dataset = SimCSEAugSamples(list(all_utterances))
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)
+    return train_loader
+
+def dstc12_loader_with_negative(args):
+    with open(args.preference_file) as f:
+        dataset = json.load(f)
+    negative_pairs = dataset["cannot_link"]
+    
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+        
+    # 대화 ID와 발화 매핑을 위한 딕셔너리 생성
+    utterance_map = {}
+    for dialogue in dataset:
+        for (turn, utterance) in enumerate(dialogue['turns']):
+            utterance_id = utterance['utterance_id']
+            utterance_map[utterance_id] = utterance['utterance']
+    # 부정적 쌍에서 텍스트 추출
+    text_1 = []
+    text_2 = []
+    for id1, id2 in negative_pairs:
+        if id1 in utterance_map and id2 in utterance_map:
+            text_1.append(utterance_map[id1])
+            text_2.append(utterance_map[id2])
+    
+    train_dataset = SimCSEAugSamplesPairs(text_1, text_2)
+    train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
+    return train_loader
+
+def dstc12_loader_with_positive(args):
+    with open(args.preference_file) as f:
+        dataset = json.load(f)
+    positive_pairs = dataset["should_link"]
+    
+    with open(args.dataset_file) as f:
+        dataset = [json.loads(line) for line in f]
+        
+    # 대화 ID와 발화 매핑을 위한 딕셔너리 생성
+    utterance_map = {}
+    for dialogue in dataset:
+        for (turn, utterance) in enumerate(dialogue['turns']):
+            utterance_id = utterance['utterance_id']
+            utterance_map[utterance_id] = utterance['utterance']
+    # 부정적 쌍에서 텍스트 추출
+    text_1 = []
+    text_2 = []
+    for id1, id2 in positive_pairs:
+        if id1 in utterance_map and id2 in utterance_map:
+            text_1.append(utterance_map[id1])
+            text_2.append(utterance_map[id2])
+    train_dataset = SimCSEAugSamplesPairs(text_1, text_2)
     train_loader = util_data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=4)   
     return train_loader
